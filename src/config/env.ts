@@ -18,9 +18,20 @@ function resolveApiBaseUrl(): string {
     return rawApiUrl.trim().replace(/\/+$/, '');
   }
 
+  // Support runtime API override for live debugging and testing
+  if (typeof window !== 'undefined') {
+    const runtimeUrl =
+      (window as any).__BRANDX_API_URL__ ||
+      localStorage.getItem('brandx_api_url') ||
+      sessionStorage.getItem('brandx_api_url');
+    if (runtimeUrl && typeof runtimeUrl === 'string' && runtimeUrl.trim()) {
+      return runtimeUrl.trim().replace(/\/+$/, '');
+    }
+  }
+
   if (isProduction) {
     console.error(
-      '[CRITICAL] VITE_API_URL is missing in production build! API requests will fail unless configured.'
+      '[CRITICAL] VITE_API_URL is missing in production build! Set VITE_API_URL in Render frontend environment variables to point to your backend service.'
     );
     // In production, never silently fall back to localhost
     return window.location.origin ? `${window.location.origin}/api/v1` : '';

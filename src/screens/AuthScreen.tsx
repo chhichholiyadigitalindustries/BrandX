@@ -306,8 +306,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       }
     } catch (dbErr: any) {
       console.error('[BrandX] Firebase auth error:', dbErr);
-      setIsLoading(false);
       showToast(dbErr.message || 'Authentication failed');
+    } finally {
+      setIsLoading(false);
     }
   };
 

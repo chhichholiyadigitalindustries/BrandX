@@ -453,6 +453,9 @@ export class AuthService {
           });
 
           return newUser;
+        }, {
+          maxWait: 10000,
+          timeout: 25000,
         });
         isNewUser = true;
       }

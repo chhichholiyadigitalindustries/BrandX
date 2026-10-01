@@ -4,8 +4,6 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { logger } from './utils/logger.js';
 
 async function bootstrap() {
-  await connectDatabase();
-
   const app = createApp();
 
   const server = app.listen(config.port, '0.0.0.0', () => {
@@ -16,6 +14,8 @@ async function bootstrap() {
     logger.info(`🩺 Health: ${config.apiPrefix}/health`);
     logger.info(`========================================================`);
   });
+
+  await connectDatabase();
 
   // Graceful shutdown handling
   const handleShutdown = async (signal: string) => {

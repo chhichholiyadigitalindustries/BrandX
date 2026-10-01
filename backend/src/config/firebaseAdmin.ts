@@ -19,36 +19,55 @@ function initializeFirebaseAdmin(): App | null {
     return firebaseAdminApp;
   }
 
-  const { projectId, clientEmail, privateKey: rawPrivateKey } = config.firebase;
+  const { projectId, clientEmail: rawClientEmail, privateKey: rawPrivateKey } = config.firebase;
 
-  // Handle multiline private key with escaped newlines
-  const privateKey = rawPrivateKey ? rawPrivateKey.replace(/\\n/g, '\n') : undefined;
+  // Clean quotes and whitespace from credentials
+  const clientEmail = rawClientEmail?.trim().replace(/^["']|["']$/g, '');
+  let privateKey = rawPrivateKey?.trim().replace(/^["']|["']$/g, '');
+  if (privateKey) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+
+  const targetProjectId = projectId || 'brandx-cdi-2026';
 
   try {
     if (clientEmail && privateKey) {
-      firebaseAdminApp = initializeApp({
-        credential: cert({
-          projectId: projectId || 'brandx-cdi-2026',
-          clientEmail,
-          privateKey,
-        }),
-      });
-      isFirebaseAdminInitialized = true;
-      logger.info(`🔥 Firebase Admin SDK initialized for project: ${projectId}`);
-      return firebaseAdminApp;
-    } else if (projectId && config.isProduction) {
-      // In production environment, try Application Default Credentials (ADC)
+      try {
+        firebaseAdminApp = initializeApp({
+          credential: cert({
+            projectId: targetProjectId,
+            clientEmail,
+            privateKey,
+          }),
+        });
+        isFirebaseAdminInitialized = true;
+        logger.info(`🔥 Firebase Admin SDK initialized with service account for project: ${targetProjectId}`);
+        return firebaseAdminApp;
+      } catch (certErr: any) {
+        logger.warn(`⚠️ Firebase Admin cert initialization failed: ${certErr.message}. Falling back to public key verification with projectId.`);
+      }
+    }
+
+    // Try Application Default Credentials if running inside Google Cloud
+    try {
       firebaseAdminApp = initializeApp({
         credential: applicationDefault(),
-        projectId,
+        projectId: targetProjectId,
       });
       isFirebaseAdminInitialized = true;
-      logger.info(`🔥 Firebase Admin SDK initialized with ADC for project: ${projectId}`);
+      logger.info(`🔥 Firebase Admin SDK initialized with ADC for project: ${targetProjectId}`);
       return firebaseAdminApp;
-    } else {
-      logger.info(`ℹ️ Firebase Admin SDK: No service account keys configured; running in development test mode.`);
-      return null;
+    } catch {
+      // Not in GCP environment, proceed to public certificate initialization
     }
+
+    // Initialize with projectId for public key token verification
+    firebaseAdminApp = initializeApp({
+      projectId: targetProjectId,
+    });
+    isFirebaseAdminInitialized = true;
+    logger.info(`🔥 Firebase Admin SDK initialized for project: ${targetProjectId} (public certificate verification)`);
+    return firebaseAdminApp;
   } catch (err: any) {
     logger.warn(`⚠️ Firebase Admin initialization warning: ${err.message}`);
     return null;
@@ -125,7 +144,7 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
 
   if (!isFirebaseAdminInitialized || !firebaseAdminApp) {
     throw new Error(
-      'Firebase Admin SDK is not configured. Please set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in backend environment.'
+      'Firebase Admin SDK is not configured. Please set FIREBASE_PROJECT_ID or service account keys (FIREBASE_CLIENT_EMAIL & FIREBASE_PRIVATE_KEY) in backend environment.'
     );
   }
 

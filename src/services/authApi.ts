@@ -232,23 +232,58 @@ class AuthApiService {
       }
     }
 
+    const controller = new AbortController();
+    const timeoutMs = (options as any)?.timeoutMs || 25000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
 
-      const json: ApiResponse<T> = await response.json().catch(() => ({
-        success: response.ok,
-        message: response.statusText,
-      }));
+      let json: any = null;
+      try {
+        const rawText = await response.text();
+        if (rawText && rawText.trim()) {
+          json = JSON.parse(rawText);
+        }
+      } catch {
+        json = null;
+      }
 
       if (!response.ok) {
         return {
           success: false,
           error: {
-            code: json.error?.code || `HTTP_${response.status}`,
-            message: json.error?.message || json.message || 'Request failed',
+            code: json?.error?.code || `HTTP_${response.status}`,
+            message: json?.error?.message || json?.message || `Request failed with status ${response.status}`,
+            details: json?.error?.details,
+          },
+        };
+      }
+
+      // If HTTP 200 was received but response is not a valid JSON API payload (e.g. static site edge absorbing route)
+      if (!json || typeof json !== 'object') {
+        console.error(`[BrandX API] Received non-JSON or empty response from ${url}:`, response.status);
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_SERVER_RESPONSE',
+            message:
+              'Server returned an invalid or empty response. Please verify VITE_API_URL is configured in Render frontend environment variables to point to the BrandX backend API.',
+          },
+        };
+      }
+
+      // If backend explicitly returned failure payload { success: false, ... }
+      if (json.success === false) {
+        return {
+          success: false,
+          error: {
+            code: json.error?.code || 'AUTH_FAILED',
+            message: json.error?.message || json.message || 'Authentication failed',
             details: json.error?.details,
           },
         };
@@ -256,14 +291,26 @@ class AuthApiService {
 
       return json;
     } catch (networkError: any) {
+      if (networkError.name === 'AbortError') {
+        console.warn(`[BrandX API] Request timed out on ${endpoint} after ${timeoutMs}ms`);
+        return {
+          success: false,
+          error: {
+            code: 'TIMEOUT',
+            message: 'Server connection timed out (25s). If the backend is waking up, please wait a moment and tap Verify again.',
+          },
+        };
+      }
       console.warn(`[BrandX API] Network error on ${endpoint}:`, networkError.message);
       return {
         success: false,
         error: {
           code: 'NETWORK_ERROR',
-          message: 'Unable to connect to backend server. Working in local offline mode.',
+          message: 'Unable to connect to backend server. Please check your internet connection or backend service status.',
         },
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

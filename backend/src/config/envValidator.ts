@@ -72,23 +72,19 @@ export function validateEnvironment(): void {
 
   // 4. CORS Origins
   const corsOrigin = process.env.CORS_ORIGIN;
-  if (!corsOrigin || corsOrigin.includes('*')) {
+  if (corsOrigin && corsOrigin.includes('*')) {
     errors.push(
-      'CORS_ORIGIN must be explicitly configured with trusted production domains and cannot contain wildcard "*" in production.'
+      'CORS_ORIGIN cannot contain wildcard "*" in production. Please specify explicit trusted domains.'
     );
   }
 
-  // 5. Firebase Admin (for token verification)
+  // 5. Firebase Configuration (for token verification)
+  const firebaseProjectId = process.env.FIREBASE_PROJECT_ID;
   const firebaseClientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const firebasePrivateKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (!firebaseClientEmail && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if (!firebaseProjectId && !firebaseClientEmail && !firebasePrivateKey && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     errors.push(
-      'FIREBASE_CLIENT_EMAIL or GOOGLE_APPLICATION_CREDENTIALS is required for server-side Firebase ID token verification.'
-    );
-  }
-  if (!firebasePrivateKey && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    errors.push(
-      'FIREBASE_PRIVATE_KEY or GOOGLE_APPLICATION_CREDENTIALS is required for server-side Firebase ID token verification.'
+      'FIREBASE_PROJECT_ID or service account credentials (FIREBASE_CLIENT_EMAIL & FIREBASE_PRIVATE_KEY) are required for Firebase ID token verification.'
     );
   }
 

@@ -41,8 +41,9 @@ export function createApp(): Express {
         // Allow requests with no origin (e.g. mobile apps, curl, native webviews)
         if (!origin) return callback(null, true);
 
+        const cleanOrigin = origin.replace(/\/+$/, '');
         // Explicitly check configured production origins
-        if (config.corsOrigin.includes(origin)) {
+        if (config.corsOrigin.includes(cleanOrigin) || config.corsOrigin.includes(origin)) {
           return callback(null, true);
         }
 

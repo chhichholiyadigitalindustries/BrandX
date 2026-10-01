@@ -10,9 +10,10 @@ export const config = {
   isProduction: process.env.NODE_ENV === 'production',
   port: parseInt(process.env.PORT || '5000', 10),
   apiPrefix: process.env.API_PREFIX || '/api/v1',
-  corsOrigin: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173')
+  corsOrigin: (process.env.CORS_ORIGIN || 'https://brandx-frontend.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173')
     .split(',')
-    .map((o) => o.trim()),
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean),
 
   database: {
     url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/brandx_db?schema=public',
