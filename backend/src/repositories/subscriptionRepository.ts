@@ -17,20 +17,20 @@ import {
 const DEFAULT_SYSTEM_PLANS: any[] = [
   {
     id: 'plan_free_default',
-    name: 'Free Starter',
+    name: 'Free Forever',
     code: 'free',
     description: 'Basic invoicing and daily poster access for small shops',
     price: 0,
-    originalPrice: null,
+    originalPrice: 0,
     currency: 'INR',
-    billingCycle: 'monthly',
+    billingCycle: 'free',
     billingInterval: 'free',
     durationDays: 3650,
-    tagline: null,
+    tagline: 'Ideal for new shopkeepers starting digital journey',
     isPopular: false,
     isActive: true,
-    features: ['Basic Invoicing', '10 Daily Suvichar Posters', 'Digital Dukaan Link'],
-    limits: { invoices: 50, aiCredits: 10 },
+    features: ['5 GST Invoices / month', 'Daily Morning Suvichar poster', 'Basic Khata ledger', 'Standard UPI QR standee'],
+    limits: { invoices: 5, posters: 10, aiCredits: 10 },
     status: 'active',
   },
   {
@@ -38,35 +38,53 @@ const DEFAULT_SYSTEM_PLANS: any[] = [
     name: 'Pro Monthly',
     code: 'pro_monthly',
     description: 'Full business acceleration for busy shopkeepers',
-    price: 199,
-    originalPrice: null,
+    price: 349,
+    originalPrice: 499,
     currency: 'INR',
     billingCycle: 'monthly',
     billingInterval: 'monthly',
     durationDays: 30,
-    tagline: 'Most Flexible',
-    isPopular: false,
+    tagline: 'Best for growing vyaparis & retail stores',
+    isPopular: true,
     isActive: true,
-    features: ['100 Daily AI Requests', 'Unlimited Invoices', 'Unlimited Posters'],
-    limits: { invoices: -1, aiCredits: 100 },
+    features: ['Unlimited GST Invoices & Estimates', '365 Days Festival & Daily Status Marketing', 'AI Copilot & Voice-to-Bill assistant', 'Digital Dukaan online catalog', 'Remove BrandX watermark'],
+    limits: { invoices: -1, aiCredits: 500 },
     status: 'active',
   },
   {
     id: 'plan_yearly_default',
-    name: 'Pro Yearly',
+    name: 'Pro Annual',
     code: 'pro_yearly',
-    description: 'Maximum savings + physical NFC Review Standee',
-    price: 1499,
-    originalPrice: null,
+    description: 'Maximum savings — Save ₹1,189 annually',
+    price: 2999,
+    originalPrice: 4188,
     currency: 'INR',
     billingCycle: 'yearly',
     billingInterval: 'yearly',
     durationDays: 365,
-    tagline: 'Best Value',
-    isPopular: true,
+    tagline: 'Maximum savings — Save ₹1,189 annually',
+    isPopular: false,
     isActive: true,
-    features: ['Everything in Pro Monthly', '365 Days Uninterrupted Pro', 'NFC Standee'],
-    limits: { invoices: -1, aiCredits: 100 },
+    features: ['All Pro Monthly features for 365 days', 'Free NFC Digital Smart Card setup', 'Priority WhatsApp & Call support', 'Export Excel reports & CA audit summary'],
+    limits: { invoices: -1, aiCredits: 2000 },
+    status: 'active',
+  },
+  {
+    id: 'plan_business_default',
+    name: 'Business Super',
+    code: 'business',
+    description: 'For wholesale distributors & multi-store chains',
+    price: 3999,
+    originalPrice: 5999,
+    currency: 'INR',
+    billingCycle: 'yearly',
+    billingInterval: 'yearly',
+    durationDays: 365,
+    tagline: 'For wholesale distributors & multi-store chains',
+    isPopular: false,
+    isActive: true,
+    features: ['Multi-user sub-account access', 'Custom invoice formats', 'Dedicated account manager'],
+    limits: { invoices: -1, aiCredits: 5000 },
     status: 'active',
   },
 ];
@@ -332,9 +350,29 @@ export class SubscriptionRepository {
   }
 
   /**
-   * Create a payment transaction record
+   * Create a payment transaction record with safe relation verification
    */
   async createTransaction(data: Prisma.PaymentTransactionCreateInput): Promise<PaymentTransaction> {
+    if (data.plan?.connect) {
+      const connectId = data.plan.connect.id;
+      const connectCode = (data.plan.connect as any).code;
+
+      const planExists = await prisma.subscriptionPlan.findFirst({
+        where: {
+          OR: [
+            ...(connectId ? [{ id: connectId }] : []),
+            ...(connectCode ? [{ code: connectCode }] : []),
+          ],
+        },
+      });
+
+      if (!planExists) {
+        throw new Error(
+          `Cannot record payment transaction: Subscription plan record (id: "${connectId || 'unknown'}") was not found in database.`
+        );
+      }
+    }
+
     return prisma.paymentTransaction.create({ data });
   }
 

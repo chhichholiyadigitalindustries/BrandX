@@ -92,6 +92,21 @@ export class SubscriptionService {
   }
 
   /**
+   * Alias for initiateSubscription / createPaymentOrder
+   */
+  async initiateSubscription(
+    businessIdOrUserId: string | undefined,
+    userIdOrBusinessId?: string,
+    planCode: string = 'pro_monthly',
+    gateway?: string
+  ) {
+    const firstIsUser = businessIdOrUserId ? await prisma.user.findUnique({ where: { id: businessIdOrUserId } }) : null;
+    const userId = firstIsUser ? businessIdOrUserId! : userIdOrBusinessId!;
+    const businessId = firstIsUser ? userIdOrBusinessId : businessIdOrUserId;
+    return this.createPaymentOrder(userId, businessId, planCode, gateway);
+  }
+
+  /**
    * Creates a provider checkout order
    */
   async createPaymentOrder(
@@ -102,7 +117,25 @@ export class SubscriptionService {
   ) {
     if (!businessId) {
       const biz = await prisma.business.findFirst({ where: { ownerId: userId, status: 'ACTIVE' } });
-      if (biz) businessId = biz.id;
+      if (biz) {
+        businessId = biz.id;
+      } else {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const createdBiz = await prisma.business.create({
+          data: {
+            ownerId: userId,
+            name: `${user?.name || 'Vyapar'}'s Business`,
+            ownerName: user?.name || 'Owner',
+            mobile: user?.mobile || '',
+            category: 'General',
+            address: 'Main Market',
+            city: 'Mumbai',
+            state: 'Maharashtra',
+            pincode: '400001',
+          },
+        });
+        businessId = createdBiz.id;
+      }
     }
 
     const plan = await subscriptionRepository.findPlanByCode(planCode);
@@ -114,26 +147,42 @@ export class SubscriptionService {
       throw new Error(`Plan "${plan.name}" is currently inactive.`);
     }
 
+    // Verify database record exists for the plan to prevent nested connect failures
+    const dbPlan = await prisma.subscriptionPlan.findFirst({
+      where: {
+        OR: [
+          ...(plan.id ? [{ id: plan.id }] : []),
+          ...(plan.code ? [{ code: plan.code }] : []),
+        ],
+      },
+    });
+
+    if (!dbPlan) {
+      throw new Error(
+        `Subscription plan "${plan.name || planCode}" is not registered in the database. Please ensure subscription plans are seeded.`
+      );
+    }
+
     // Check if user already has an active subscription for this plan
     const activeSub = await subscriptionRepository.findActiveSubscription(businessId, userId);
-    if (activeSub && activeSub.planId === plan.id && !activeSub.cancelAtPeriodEnd) {
+    if (activeSub && activeSub.planId === dbPlan.id && !activeSub.cancelAtPeriodEnd) {
       const expiry = activeSub.currentPeriodEnd || activeSub.expiryDate;
       const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       if (daysLeft > 7) {
-        logger.info(`User already has active ${plan.name} with ${daysLeft} days remaining.`);
+        logger.info(`User already has active ${dbPlan.name} with ${daysLeft} days remaining.`);
       }
     }
 
     const receipt = `rcpt_${Date.now()}_${userId.substring(0, 4)}`;
     const order = await paymentService.createOrder(
       {
-        amount: plan.price,
-        currency: plan.currency,
+        amount: dbPlan.price,
+        currency: dbPlan.currency,
         receipt,
         notes: {
           userId,
           businessId: businessId || '',
-          planCode: plan.code,
+          planCode: dbPlan.code,
         },
       },
       gateway
@@ -146,9 +195,9 @@ export class SubscriptionService {
       providerOrderId: order.orderId,
       user: { connect: { id: userId } },
       business: { connect: { id: businessId } },
-      plan: { connect: { id: plan.id } },
-      amount: plan.price,
-      currency: plan.currency,
+      plan: { connect: { id: dbPlan.id } },
+      amount: dbPlan.price,
+      currency: dbPlan.currency,
       paymentMethod: PaymentMethod.UPI,
       gateway: (gateway?.toUpperCase() as PaymentGateway) || PaymentGateway.RAZORPAY,
       status: PaymentStatus.PENDING,
@@ -250,8 +299,24 @@ export class SubscriptionService {
       throw new Error('Associated subscription plan not found');
     }
 
+    // Verify database record exists for the plan to prevent nested connect failures
+    const dbPlan = await prisma.subscriptionPlan.findFirst({
+      where: {
+        OR: [
+          ...(plan.id ? [{ id: plan.id }] : []),
+          ...(plan.code ? [{ code: plan.code }] : []),
+        ],
+      },
+    });
+
+    if (!dbPlan) {
+      throw new Error(
+        `Associated subscription plan "${plan.name || params.planCode || 'pro_monthly'}" was not found in the database. Please ensure subscription plans are seeded.`
+      );
+    }
+
     // 4. Calculate subscription period
-    const durationDays = plan.durationDays || (plan.billingCycle === 'yearly' || plan.billingInterval === 'yearly' ? 365 : 30);
+    const durationDays = dbPlan.durationDays || (dbPlan.billingCycle === 'yearly' || dbPlan.billingInterval === 'yearly' ? 365 : 30);
     const now = new Date();
     const periodEnd = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
@@ -274,9 +339,9 @@ export class SubscriptionService {
         data: {
           user: { connect: { id: userId } },
           business: { connect: { id: targetBusinessId } },
-          plan: { connect: { id: plan.id } },
-          amount: plan.price,
-          currency: plan.currency,
+          plan: { connect: { id: dbPlan.id } },
+          amount: dbPlan.price,
+          currency: dbPlan.currency,
           status: SubscriptionStatus.ACTIVE,
           startDate: now,
           currentPeriodStart: now,
@@ -319,11 +384,11 @@ export class SubscriptionService {
             providerPaymentId: paymentId,
             providerSignature: signature,
             user: { connect: { id: userId } },
-            business: { connect: { id: businessId } },
+            business: { connect: { id: targetBusinessId } },
             subscription: { connect: { id: newSub.id } },
-            plan: { connect: { id: plan.id } },
-            amount: plan.price,
-            currency: plan.currency,
+            plan: { connect: { id: dbPlan.id } },
+            amount: dbPlan.price,
+            currency: dbPlan.currency,
             status: PaymentStatus.CAPTURED,
             paymentMethod: verification.method,
             maskedInstrument: verification.maskedInstrument || 'UPI: vyapari@okhdfcbank',
@@ -341,8 +406,8 @@ export class SubscriptionService {
           entity: 'Subscription',
           entityId: newSub.id,
           metadata: {
-            planCode: plan.code,
-            amount: plan.price,
+            planCode: dbPlan.code,
+            amount: dbPlan.price,
             orderId,
             paymentId,
             durationDays,
@@ -351,6 +416,9 @@ export class SubscriptionService {
       });
 
       return newSub;
+    }, {
+      maxWait: 10000,
+      timeout: 25000,
     });
 
     return {

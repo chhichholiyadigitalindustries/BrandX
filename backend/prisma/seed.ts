@@ -16,6 +16,8 @@ async function main() {
       originalPrice: 0,
       currency: 'INR',
       billingCycle: 'free',
+      billingInterval: 'free',
+      durationDays: 3650,
       tagline: 'Ideal for new shopkeepers starting digital journey',
       isPopular: false,
       features: [
@@ -35,6 +37,7 @@ async function main() {
         nfcSmartCard: false,
       },
       status: 'active',
+      isActive: true,
     },
     {
       name: 'Pro Monthly',
@@ -43,6 +46,8 @@ async function main() {
       originalPrice: 499,
       currency: 'INR',
       billingCycle: 'monthly',
+      billingInterval: 'monthly',
+      durationDays: 30,
       tagline: 'Best for growing vyaparis & retail stores',
       isPopular: true,
       features: [
@@ -63,6 +68,7 @@ async function main() {
         nfcSmartCard: false,
       },
       status: 'active',
+      isActive: true,
     },
     {
       name: 'Pro Annual',
@@ -71,6 +77,8 @@ async function main() {
       originalPrice: 4188,
       currency: 'INR',
       billingCycle: 'yearly',
+      billingInterval: 'yearly',
+      durationDays: 365,
       tagline: 'Maximum savings — Save ₹1,189 annually',
       isPopular: false,
       features: [
@@ -90,6 +98,7 @@ async function main() {
         nfcSmartCard: true,
       },
       status: 'active',
+      isActive: true,
     },
     {
       name: 'Business Super',
@@ -98,6 +107,8 @@ async function main() {
       originalPrice: 5999,
       currency: 'INR',
       billingCycle: 'yearly',
+      billingInterval: 'yearly',
+      durationDays: 365,
       tagline: 'For wholesale distributors & multi-store chains',
       isPopular: false,
       features: [
@@ -117,6 +128,7 @@ async function main() {
         nfcSmartCard: true,
       },
       status: 'active',
+      isActive: true,
     },
   ];
 
