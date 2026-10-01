@@ -1,0 +1,1395 @@
+// ============================================================
+// BRANDX PRISMA POSTGRESQL SCHEMA
+// All-in-One Business Super App for Indian Vyaparis & MSMEs
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  ACCOUNTANT
+  CONTENT_MANAGER
+  SUPPORT
+  FINANCE
+}
+
+enum KhataTransactionType {
+  UDHAAR
+  JAMA
+  GIVE_UDHAR
+  RECEIVE_JAMA
+}
+
+enum DocumentType {
+  GST_INVOICE
+  RETAIL_BILL
+  QUOTATION
+  ESTIMATE
+  DELIVERY_CHALLAN
+  PROFORMA_INVOICE
+  TAX_INVOICE
+  ESTIMATE_QUOTATION
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  PARTIALLY_PAID
+  UNPAID
+  CANCELLED
+  VOID
+}
+
+enum ItemType {
+  GOODS
+  SERVICE
+}
+
+enum ProductUnit {
+  PCS
+  BOX
+  KG
+  GRAM
+  LITRE
+  ML
+  METER
+  CM
+  FEET
+  DOZEN
+  PAIR
+  PACK
+  BAG
+  BOTTLE
+  SET
+  OTHER
+}
+
+enum TaxType {
+  EXCLUSIVE
+  INCLUSIVE
+  EXEMPT
+}
+
+enum InventoryTransactionType {
+  OPENING_STOCK
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  SALE
+  PURCHASE
+  RETURN_IN
+  RETURN_OUT
+}
+
+enum InvoicePaymentStatus {
+  PAID
+  PARTIALLY_PAID
+  UNPAID
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  TRIALING
+  EXPIRED
+  CANCELLED
+  PAST_DUE
+  PAYMENT_FAILED
+  PENDING
+  PAUSED
+}
+
+enum PaymentStatus {
+  SUCCESS
+  CREATED
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NETBANKING
+  WALLET
+  EMI
+  CASH
+  QR
+  BANK_TRANSFER
+  CREDIT
+  OTHER
+}
+
+enum PaymentGateway {
+  RAZORPAY
+  CASHFREE
+  PHONEPE
+  PAYTM
+  STRIPE
+  MANUAL
+}
+
+enum RefundStatus {
+  REQUESTED
+  PROCESSING
+  COMPLETED
+  REJECTED
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+enum PosterLanguage {
+  HI
+  EN
+  HINGLISH
+}
+
+enum ContentTier {
+  FREE
+  PRO
+}
+
+enum ContentType {
+  MORNING_GREETING
+  SUVICHAR
+  FESTIVAL
+  BUSINESS
+  MOTIVATIONAL
+  SALE
+  ANNOUNCEMENT
+  CUSTOM
+}
+
+enum ContentEventType {
+  VIEW
+  DOWNLOAD
+  SHARE
+  WHATSAPP_CLICK
+  FAVORITE
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  WHATSAPP
+  EMAIL
+}
+
+enum ActorType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+enum ReferralStatus {
+  CLICKED
+  REGISTERED
+  VERIFIED
+  ELIGIBLE
+  REWARDED
+  REJECTED
+}
+
+enum WalletTransactionType {
+  REFERRAL_REWARD
+  WITHDRAWAL
+  WITHDRAWAL_REVERSAL
+  ADMIN_ADJUSTMENT
+  BONUS
+  EXPIRY
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum PayoutMethod {
+  UPI
+  BANK_ACCOUNT
+}
+
+// ------------------------------------------------------------
+// USER & SESSIONS
+// ------------------------------------------------------------
+
+model User {
+  id               String       @id @default(uuid())
+  firebaseUid      String?      @unique
+  name             String
+  mobile           String?      @unique
+  email            String?      @unique
+  passwordHash     String?
+  profileImage     String?
+  language         String       @default("hi") // "hi" | "en"
+  timezone         String       @default("Asia/Kolkata")
+  status           UserStatus   @default(ACTIVE)
+  isPro            Boolean      @default(false)
+  phoneVerified    Boolean      @default(false)
+  emailVerified    Boolean      @default(false)
+  referralCode     String?      @unique
+  referredByCode   String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // Relationships
+  sessions         UserSession[]
+  businesses       Business[]
+  subscriptions    Subscription[]
+  paymentTransactions PaymentTransaction[]
+  refunds          RefundRecord[]
+  aiUsageLogs      AIUsageLog[]
+  aiUsages         AIUsage[]
+  notifications    Notification[]
+  wallet           Wallet?
+  walletTransactions WalletTransaction[]
+  withdrawals      Withdrawal[]
+  referralsGiven   Referral[]   @relation("Referrer")
+  referralsReceived Referral?   @relation("ReferredUser")
+
+  @@index([firebaseUid])
+  @@index([mobile])
+  @@index([email])
+  @@index([status])
+  @@index([referralCode])
+}
+
+model UserSession {
+  id               String       @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  isRevoked        Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+}
+
+model AdminUser {
+  id               String       @id @default(uuid())
+  name             String
+  email            String       @unique
+  phone            String?
+  passwordHash     String
+  role             AdminRole    @default(MANAGER)
+  status           UserStatus   @default(ACTIVE)
+  isActive         Boolean      @default(true)
+  avatarUrl        String?
+  lastLogin        DateTime?
+  lastLoginAt      DateTime?
+  createdBy        String?
+  permissions      String[]     @default([])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([isActive])
+}
+
+// ------------------------------------------------------------
+// BUSINESS / SHOP PROFILES
+// ------------------------------------------------------------
+
+model Business {
+  id                  String            @id @default(uuid())
+  ownerId             String
+  name                String
+  ownerName           String
+  businessType        String            @default("Retail")
+  category            String            @default("Retail & Kirana")
+  mobile              String
+  email               String?
+  address             String
+  city                String
+  state               String
+  pincode             String
+  gstin               String?
+  pan                 String?
+  tagline             String?
+  logoUrl             String?
+  upiId               String?
+  upiLinked           Boolean           @default(false)
+  bankName            String?
+  accountNumber       String?
+  ifscCode            String?
+  accountHolderName   String?
+  invoicePrefix       String            @default("INV")
+  nextInvoiceNumber   Int               @default(1)
+  invoiceTerms        String?
+  signatureUrl        String?
+  instagram           String?
+  isVerified          Boolean           @default(false)
+  status              UserStatus        @default(ACTIVE)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  owner               User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  settings            BusinessSettings?
+  customers           Customer[]
+  khataTransactions   KhataTransaction[]
+  paymentReminders    PaymentReminder[]
+  products            Product[]
+  productCategories   ProductCategory[]
+  inventoryTransactions InventoryTransaction[]
+  invoices            Invoice[]
+  invoiceNumberSequences InvoiceNumberSequence[]
+  digitalStore        DigitalStore?
+  digitalCards        DigitalCard[]
+  subscriptions       Subscription[]
+  paymentTransactions PaymentTransaction[]
+  refunds             RefundRecord[]
+  aiUsageLogs         AIUsageLog[]
+  aiUsages            AIUsage[]
+
+  @@index([ownerId])
+  @@index([gstin])
+  @@index([city, state])
+}
+
+model BusinessSettings {
+  id                  String       @id @default(uuid())
+  businessId          String       @unique
+  autoShareWhatsapp   Boolean      @default(true)
+  showGstOnBill       Boolean      @default(true)
+  defaultGstRate      Float        @default(18.0)
+  thermalPrintWidth   String       @default("80mm") // "58mm" | "80mm"
+  currency            String       @default("INR")
+  themeColor          String       @default("#005338")
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  business            Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------
+// CUSTOMERS & DIGITAL KHATA (UDHAR-BAHI)
+// ------------------------------------------------------------
+
+model Customer {
+  id                  String             @id @default(uuid())
+  businessId          String
+  name                String
+  phone               String?
+  mobile              String
+  email               String?
+  address             String?
+  gstin               String?
+  notes               String?
+  openingBalance      Float              @default(0.0)
+  balance             Float              @default(0.0)
+  currentBalance      Float              @default(0.0) // Positive = Udhar due, Negative = Advance
+  status              UserStatus         @default(ACTIVE)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  business            Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  khataTransactions   KhataTransaction[]
+  paymentReminders    PaymentReminder[]
+  invoices            Invoice[]
+
+  @@index([businessId])
+  @@index([mobile])
+  @@index([businessId, mobile])
+  @@index([businessId, name])
+}
+
+model KhataTransaction {
+  id                  String               @id @default(uuid())
+  businessId          String
+  customerId          String
+  type                KhataTransactionType
+  amount              Float
+  transactionDate     DateTime             @default(now())
+  billNumber          String?
+  description         String?
+  note                String?
+  paymentMode         String?              @default("CASH") // "CASH" | "UPI" | "BANK"
+  reference           String?
+  attachmentUrl       String?
+  createdById         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([transactionDate])
+  @@index([businessId, customerId])
+  @@index([businessId, transactionDate])
+}
+
+model PaymentReminder {
+  id                  String       @id @default(uuid())
+  businessId          String
+  customerId          String
+  amount              Float
+  upiId               String?
+  reminderMessage     String
+  channel             String       @default("WHATSAPP") // "WHATSAPP" | "SMS"
+  status              String       @default("PENDING")  // "PENDING" | "SENT" | "DELIVERED"
+  generatedAt         DateTime     @default(now())
+  sentAt              DateTime?
+  createdAt           DateTime     @default(now())
+
+  business            Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer            Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([customerId])
+}
+
+// ------------------------------------------------------------
+// PRODUCT CATEGORY
+// ------------------------------------------------------------
+
+model ProductCategory {
+  id                  String       @id @default(uuid())
+  businessId          String
+  name                String
+  description         String?
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  business            Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products            Product[]
+
+  @@index([businessId])
+  @@index([businessId, name])
+}
+
+// ------------------------------------------------------------
+// PRODUCT / ITEM MASTER
+// ------------------------------------------------------------
+
+model Product {
+  id                  String                 @id @default(uuid())
+  businessId          String
+  name                String
+  itemCode            String?
+  sku                 String?
+  barcode             String?
+  categoryId          String?
+  category            String                 @default("General")
+  description         String?
+  type                ItemType               @default(GOODS)
+
+  // Pricing (Decimals for high financial accuracy)
+  purchasePrice       Decimal?               @db.Decimal(12, 2)
+  sellingPrice        Decimal                @default(0.0) @db.Decimal(12, 2)
+  mrp                 Decimal?               @db.Decimal(12, 2)
+
+  // GST / Tax
+  hsnSac              String?
+  hsnCode             String?                // Alias for backwards compatibility
+  gstRate             Float                  @default(18.0)
+  gstPercent          Float                  @default(18.0) // Alias for backwards compatibility
+  taxType             TaxType                @default(EXCLUSIVE)
+  cessRate            Decimal?               @db.Decimal(5, 2)
+
+  // Units
+  unit                ProductUnit            @default(PCS)
+  secondaryUnit       String?
+  conversionFactor    Float?
+
+  // Inventory
+  openingStock        Float                  @default(0.0)
+  currentStock        Float                  @default(0.0)
+  stockQty            Int                    @default(0) // Alias for backwards compatibility
+  lowStockThreshold   Float                  @default(5.0)
+
+  // Status
+  isActive            Boolean                @default(true)
+  isAvailable         Boolean                @default(true)
+  imageUrl            String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  business            Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  productCategory     ProductCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  inventoryTransactions InventoryTransaction[]
+  invoiceItems        InvoiceItem[]
+  digitalStoreItems   DigitalStoreItem[]
+
+  @@index([businessId])
+  @@index([categoryId])
+  @@index([businessId, name])
+  @@index([businessId, sku])
+  @@index([businessId, itemCode])
+  @@index([businessId, barcode])
+  @@index([businessId, categoryId])
+  @@index([businessId, isActive])
+}
+
+// ------------------------------------------------------------
+// INVENTORY TRANSACTIONS
+// ------------------------------------------------------------
+
+model InventoryTransaction {
+  id                  String                   @id @default(uuid())
+  businessId          String
+  productId           String
+  type                InventoryTransactionType
+  quantity            Float
+  previousStock       Float
+  newStock            Float
+  referenceType       String?                  // e.g. "OPENING", "MANUAL_ADJUSTMENT", "SALE", "PURCHASE"
+  referenceId         String?
+  note                String?
+  createdAt           DateTime                 @default(now())
+
+  business            Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product             Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([productId])
+  @@index([businessId, productId])
+  @@index([productId, createdAt])
+}
+
+// ------------------------------------------------------------
+// GST BILLING & INVOICING
+// ------------------------------------------------------------
+
+model Invoice {
+  id                  String               @id @default(uuid())
+  businessId          String
+  customerId          String?
+  invoiceNumber       String
+  documentType        DocumentType         @default(GST_INVOICE)
+  status              InvoiceStatus        @default(ISSUED)
+  invoiceDate         DateTime             @default(now())
+  billDate            DateTime             @default(now()) // Alias for backward compatibility
+  dueDate             DateTime?
+  placeOfSupply       String?
+  
+  // Seller Snapshot
+  sellerGSTIN         String?
+  sellerGstin         String?              // Alias for backward compatibility
+  sellerName          String
+  sellerAddress       String
+  sellerPhone         String?
+  sellerEmail         String?
+  sellerUpi           String?
+  upiIdSnapshot       String?
+  bankDetailsSnapshot String?
+
+  // Buyer Snapshot
+  buyerName           String
+  buyerPhone          String?
+  buyerEmail          String?
+  buyerGSTIN          String?
+  buyerGstin          String?              // Alias for backward compatibility
+  buyerAddress        String?
+  reverseCharge       Boolean              @default(false)
+
+  // Calculations (High precision Decimal)
+  subtotal            Decimal              @default(0.0) @db.Decimal(12, 2)
+  totalDiscount       Decimal              @default(0.0) @db.Decimal(12, 2)
+  taxableAmount       Decimal              @default(0.0) @db.Decimal(12, 2)
+  totalCGST           Decimal              @default(0.0) @db.Decimal(12, 2)
+  totalSGST           Decimal              @default(0.0) @db.Decimal(12, 2)
+  totalIGST           Decimal              @default(0.0) @db.Decimal(12, 2)
+  totalCess           Decimal              @default(0.0) @db.Decimal(12, 2)
+  roundOff            Decimal              @default(0.0) @db.Decimal(12, 2)
+  grandTotal          Decimal              @default(0.0) @db.Decimal(12, 2)
+  totalAmount         Decimal              @default(0.0) @db.Decimal(12, 2) // Alias for backward compatibility
+  amountPaid          Decimal              @default(0.0) @db.Decimal(12, 2)
+  amountDue           Decimal              @default(0.0) @db.Decimal(12, 2)
+
+  // Legacy/Compatibility calculation aliases
+  discountAmount      Float                @default(0.0)
+  cgstAmount          Float                @default(0.0)
+  sgstAmount          Float                @default(0.0)
+  igstAmount          Float                @default(0.0)
+  cessAmount          Float                @default(0.0)
+  discountCode        String?
+  discountPercent     Float                @default(0.0)
+  amountInWords       String?
+  isGstBill           Boolean              @default(true)
+
+  // Payment details
+  paymentMethod       PaymentMethod        @default(UPI)
+  paymentStatus       InvoicePaymentStatus @default(PAID)
+
+  // Metadata & Rules
+  notes               String?
+  termsAndConditions  String?
+  terms               String?              // Alias for backward compatibility
+  includeSignature    Boolean              @default(true)
+  createdBy           String?
+  stockDeducted       Boolean              @default(false)
+  khataTxId           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items               InvoiceItem[]
+  payments            InvoicePayment[]
+
+  @@unique([businessId, invoiceNumber])
+  @@index([businessId])
+  @@index([businessId, invoiceNumber])
+  @@index([businessId, invoiceDate])
+  @@index([businessId, status])
+  @@index([businessId, documentType])
+  @@index([customerId])
+  @@index([billDate])
+  @@index([paymentStatus])
+}
+
+model InvoiceItem {
+  id                  String       @id @default(uuid())
+  invoiceId           String
+  productId           String?
+  
+  // Snapshots
+  productNameSnapshot String
+  name                String       // Alias for backward compatibility
+  itemCodeSnapshot    String?
+  hsnSacSnapshot      String?
+  code                String?      // Alias for backward compatibility
+  type                ItemType     @default(GOODS)
+  
+  quantity            Float        @default(1.0)
+  qty                 Float        @default(1.0) // Alias for backward compatibility
+  unit                String       @default("PCS")
+
+  // Pricing & Tax (High precision Decimal)
+  rate                Decimal      @default(0.0) @db.Decimal(12, 2)
+  mrp                 Decimal?     @db.Decimal(12, 2)
+  discountType        String       @default("PERCENT") // "PERCENT" | "FIXED"
+  discountValue       Decimal      @default(0.0) @db.Decimal(12, 2)
+  discountAmount      Decimal      @default(0.0) @db.Decimal(12, 2)
+  discount            Float        @default(0.0) // Alias for backward compatibility
+  taxableValue        Decimal      @default(0.0) @db.Decimal(12, 2)
+  taxableAmount       Decimal      @default(0.0) @db.Decimal(12, 2) // Alias for backward compatibility
+  gstRate             Float        @default(18.0)
+  gstPercent          Float        @default(18.0) // Alias for backward compatibility
+  cgstAmount          Decimal      @default(0.0) @db.Decimal(12, 2)
+  sgstAmount          Decimal      @default(0.0) @db.Decimal(12, 2)
+  igstAmount          Decimal      @default(0.0) @db.Decimal(12, 2)
+  cessAmount          Decimal      @default(0.0) @db.Decimal(12, 2)
+  totalAmount         Decimal      @default(0.0) @db.Decimal(12, 2)
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  invoice             Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product             Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([productId])
+}
+
+model InvoicePayment {
+  id                  String        @id @default(uuid())
+  invoiceId           String
+  amount              Decimal       @default(0.0) @db.Decimal(12, 2)
+  paymentMethod       PaymentMethod @default(UPI)
+  referenceNumber     String?
+  transactionRef      String?       // Alias for backward compatibility
+  paymentDate         DateTime      @default(now())
+  notes               String?
+  note                String?       // Alias for backward compatibility
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  invoice             Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model InvoiceNumberSequence {
+  id                  String        @id @default(uuid())
+  businessId          String
+  documentType        DocumentType
+  prefix              String        @default("INV")
+  nextNumber          Int           @default(1)
+  financialYear       String        // e.g. "2026-27"
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  business            Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, documentType, financialYear])
+  @@index([businessId])
+  @@index([businessId, financialYear])
+}
+
+// ------------------------------------------------------------
+// DIGITAL DUKAAN & NFC SMART CARD
+// ------------------------------------------------------------
+
+model DigitalStore {
+  id                  String             @id @default(uuid())
+  businessId          String             @unique
+  slug                String             @unique
+  title               String
+  tagline             String?
+  description         String?
+  logoUrl             String?
+  coverImageUrl       String?
+  phone               String
+  whatsappNumber      String?
+  whatsapp            String?            // Kept for backward compatibility
+  email               String?
+  address             String?
+  city                String?
+  state               String?
+  pincode             String?
+  mapUrl              String?
+  websiteUrl          String?
+  website             String?            // Kept for backward compatibility
+  upiId               String?
+  businessHours       String?
+  googleReviewUrl     String?
+  instagram           String?
+  socialLinks         Json?              // { instagram, facebook, youtube, linkedin, twitter, telegram, whatsapp }
+  theme               String             @default("emerald")
+  viewsCount          Int                @default(0)
+  isPublished         Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  business            Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  items               DigitalStoreItem[]
+  digitalCards        DigitalCard[]
+
+  @@index([businessId])
+  @@index([slug])
+  @@index([isPublished])
+}
+
+model DigitalStoreItem {
+  id                  String       @id @default(uuid())
+  storeId             String
+  productId           String?
+  name                String
+  displayName         String?
+  price               Float
+  displayPrice        Float?
+  originalPrice       Float?
+  description         String?
+  imageUrl            String?
+  category            String       @default("General")
+  isAvailable         Boolean      @default(true)
+  isVisible           Boolean      @default(true)
+  sortOrder           Int          @default(0)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  store               DigitalStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product             Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([productId])
+  @@index([sortOrder])
+}
+
+model DigitalCard {
+  id                  String        @id @default(uuid())
+  businessId          String
+  digitalStoreId      String?
+  name                String
+  fullName            String?
+  designation         String?
+  company             String
+  companyName         String?
+  mobile              String
+  phone               String?
+  email               String?
+  whatsapp            String?
+  website             String?
+  address             String?
+  city                String?
+  state               String?
+  pincode             String?
+  profileImageUrl     String?
+  logoUrl             String?
+  bio                 String?
+  slug                String        @unique
+  upiId               String?
+  socialLinks         Json?         // { instagram, facebook, youtube, linkedin, twitter, telegram, whatsapp }
+  qrData              String?
+  viewsCount          Int           @default(0)
+  theme               String        @default("executive")
+  isPublished         Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  business            Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  digitalStore        DigitalStore? @relation(fields: [digitalStoreId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([digitalStoreId])
+  @@index([slug])
+  @@index([isPublished])
+}
+
+// ------------------------------------------------------------
+// DAILY STATUS CMS, POSTER LIBRARY & FESTIVALS
+// ------------------------------------------------------------
+
+model DailyContent {
+  id                  String           @id @default(uuid())
+  date                String?          // "YYYY-MM-DD"
+  title               String
+  description         String?
+  contentText         String?
+  headline            String?
+  quoteHindi          String?
+  quoteEnglish        String?
+  quoteHinglish       String?
+  language            String           @default("hi") // "hi" | "en" | "hinglish" + regional languages
+  category            String           @default("suvichar") // legacy string fallback
+  categoryId          String?
+  contentType         ContentType      @default(SUVICHAR)
+  imageUrl            String
+  thumbnailUrl        String?
+  aspectRatio         String           @default("9:16") // "9:16" | "1:1" | "4:5" | "16:9" | "A4"
+  contentDate         DateTime?
+  festivalId          String?
+  isActive            Boolean          @default(true)
+  isPublished         Boolean          @default(true)
+  isFeatured          Boolean          @default(false)
+  sortOrder           Int              @default(0)
+  publishAt           DateTime?        @default(now())
+  expiresAt           DateTime?
+  publishDateTime     DateTime         @default(now())
+  sharesCount         Int              @default(0)
+  downloadsCount      Int              @default(0)
+  viewsCount          Int              @default(0)
+  tags                String[]
+  createdBy           String?
+  authorAdminId       String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  categoryRel         ContentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  festival            Festival?        @relation(fields: [festivalId], references: [id], onDelete: SetNull)
+  events              ContentEvent[]
+
+  @@index([contentDate])
+  @@index([date])
+  @@index([categoryId])
+  @@index([festivalId])
+  @@index([language])
+  @@index([isPublished])
+  @@index([publishAt])
+  @@index([contentType])
+  @@index([isFeatured])
+}
+
+model ContentCategory {
+  id                  String           @id @default(uuid())
+  name                String
+  slug                String           @unique
+  description         String?
+  icon                String           @default("category")
+  sortOrder           Int              @default(0)
+  isActive            Boolean          @default(true)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @default(now()) @updatedAt
+
+  dailyContents       DailyContent[]
+  contentAssets       ContentAsset[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model Festival {
+  id                  String           @id @default(uuid())
+  name                String
+  hindiName           String?
+  slug                String           @unique
+  description         String?
+  festivalDate        DateTime         @default(now())
+  date                String           @default("") // "YYYY-MM-DD" legacy
+  year                Int              @default(2026)
+  language            String?          @default("hi")
+  imageUrl            String?
+  bannerUrl           String?
+  priority            Int              @default(1)
+  tags                String[]
+  isActive            Boolean          @default(true)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  dailyContents       DailyContent[]
+  contentAssets       ContentAsset[]
+
+  @@index([festivalDate])
+  @@index([year])
+  @@index([slug])
+  @@index([date])
+  @@index([isActive])
+}
+
+model ContentAsset {
+  id                  String           @id @default(uuid())
+  title               String
+  description         String?
+  imageUrl            String
+  thumbnailUrl        String?
+  contentType         ContentType      @default(BUSINESS)
+  categoryId          String?
+  festivalId          String?
+  language            String           @default("hi")
+  aspectRatio         String           @default("1:1") // "9:16" | "1:1" | "4:5" | "16:9" | "A4"
+  format              String           @default("1:1 Sq")
+  tier                ContentTier      @default(FREE)
+  tags                String[]
+  isPublished         Boolean          @default(true)
+  isFeatured          Boolean          @default(false)
+  viewsCount          Int              @default(0)
+  sharesCount         Int              @default(0)
+  downloadsCount      Int              @default(0)
+  createdBy           String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  category            ContentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  festival            Festival?        @relation(fields: [festivalId], references: [id], onDelete: SetNull)
+  events              ContentEvent[]
+
+  @@index([categoryId])
+  @@index([festivalId])
+  @@index([language])
+  @@index([contentType])
+  @@index([isPublished])
+  @@index([aspectRatio])
+  @@index([tier])
+}
+
+model ContentEvent {
+  id                  String           @id @default(uuid())
+  contentId           String?
+  assetId             String?
+  userId              String?
+  businessId          String?
+  eventType           ContentEventType
+  metadata            Json?
+  ipAddress           String?
+  userAgent           String?
+  createdAt           DateTime         @default(now())
+
+  content             DailyContent?    @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  asset               ContentAsset?    @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([contentId])
+  @@index([assetId])
+  @@index([eventType])
+  @@index([userId])
+  @@index([businessId])
+  @@index([createdAt])
+}
+
+model PosterTemplate {
+  id                  String       @id @default(uuid())
+  title               String
+  category            String
+  categoryIcon        String       @default("photo_library")
+  tier                ContentTier  @default(FREE)
+  format              String       @default("1:1 Sq") // "1:1 Sq" | "Story 9:16" | "Card" | "4:5 Feed"
+  usedCount           String?      @default("1.2k+")
+  imageUrl            String
+  promptText          String?
+  headlineDefault     String?
+  subheadlineDefault  String?
+  isPublished         Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([category])
+  @@index([tier])
+}
+
+
+// ------------------------------------------------------------
+// AI BIZ COPILOT
+// ------------------------------------------------------------
+
+model AIUsageLog {
+  id                  String       @id @default(uuid())
+  userId              String?
+  businessId          String?
+  feature             String       // "chat" | "poster_prompt" | "review_reply" | "voice_to_bill"
+  promptText          String
+  tokensUsed          Int          @default(0)
+  success             Boolean      @default(true)
+  errorMessage        String?
+  durationMs          Int          @default(0)
+  createdAt           DateTime     @default(now())
+
+  user                User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  business            Business?    @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([feature])
+  @@index([createdAt])
+}
+
+model AIUsage {
+  id                  String       @id @default(uuid())
+  userId              String
+  businessId          String?
+  feature             String       // "CHAT" | "REVIEW_REPLY" | "WHATSAPP_CAMPAIGN" | "CAPTION" | "BUSINESS_INSIGHTS" | "OTHER"
+  model               String
+  requestId           String?
+  inputTokens         Int?
+  outputTokens        Int?
+  totalTokens         Int?
+  status              String       @default("SUCCESS") // "SUCCESS" | "FAILED" | "RATE_LIMITED" | "TIMEOUT"
+  errorCode           String?
+  createdAt           DateTime     @default(now())
+
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business            Business?    @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([feature])
+  @@index([createdAt])
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+// PRO SUBSCRIPTIONS, PAYMENTS & REVENUE
+// ------------------------------------------------------------
+
+model SubscriptionPlan {
+  id                  String             @id @default(uuid())
+  name                String
+  code                String             @unique // "free" | "pro_monthly" | "pro_yearly" | "business" | "enterprise"
+  description         String?
+  price               Float
+  originalPrice       Float?
+  currency            String             @default("INR")
+  billingCycle        String             @default("monthly") // "monthly" | "yearly" | "lifetime" | "free"
+  billingInterval     String?            // "monthly" | "yearly" | "free"
+  durationDays        Int                @default(30)
+  tagline             String?
+  isPopular           Boolean            @default(false)
+  isActive            Boolean            @default(true)
+  features            String[]
+  limits              Json               // { invoices, posters, aiCredits, digitalDukaan, removeWatermark, customBranding }
+  status              String             @default("active")  // "active" | "archived" | "draft"
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  subscriptions       Subscription[]
+  paymentTransactions PaymentTransaction[]
+
+  @@index([code])
+  @@index([status])
+  @@index([isActive])
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  userId                 String
+  businessId             String
+  planId                 String
+  amount                 Float
+  currency               String             @default("INR")
+  status                 SubscriptionStatus @default(ACTIVE)
+  startDate              DateTime           @default(now())
+  expiryDate             DateTime
+  currentPeriodStart     DateTime?          @default(now())
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  cancelledAt            DateTime?
+  endedAt                DateTime?
+  autoRenew              Boolean            @default(true)
+  paymentProvider        PaymentGateway     @default(RAZORPAY)
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business               Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  plan                   SubscriptionPlan   @relation(fields: [planId], references: [id])
+  paymentTransactions    PaymentTransaction[]
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([status])
+  @@index([expiryDate])
+  @@index([currentPeriodEnd])
+}
+
+model PaymentTransaction {
+  id                  String             @id @default(uuid())
+  orderId             String             @unique
+  paymentId           String             @unique
+  providerOrderId     String?
+  providerPaymentId   String?
+  providerSignature   String?
+  userId              String
+  businessId          String
+  subscriptionId      String?
+  planId              String?
+  amount              Float
+  taxAmount           Float              @default(0.0)
+  gatewayFee          Float              @default(0.0)
+  netAmount           Float              @default(0.0)
+  currency            String             @default("INR")
+  paymentMethod       PaymentMethod      @default(UPI)
+  maskedInstrument    String?            // Safe masked string e.g. "UPI: r***@okhdfcbank" or "Card: **** 4821"
+  gateway             PaymentGateway     @default(RAZORPAY)
+  status              PaymentStatus      @default(SUCCESS)
+  description         String?
+  failureReason       String?
+  failureCode         String?
+  metadata            Json?
+  refundId            String?
+  refundAmount        Float?
+  refundDate          DateTime?
+  paidAt              DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @default(now()) @updatedAt
+
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business            Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subscription        Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  plan                SubscriptionPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
+  refunds             RefundRecord[]
+
+  @@index([orderId])
+  @@index([paymentId])
+  @@index([userId])
+  @@index([businessId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RefundRecord {
+  id                  String             @id @default(uuid())
+  transactionId       String
+  paymentId           String
+  orderId             String
+  providerRefundId    String?
+  userId              String
+  businessId          String
+  amount              Float
+  currency            String             @default("INR")
+  reason              String
+  status              RefundStatus       @default(REQUESTED)
+  adminNotes          String?
+  metadata            Json?
+  processedAt         DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  transaction         PaymentTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business            Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([userId])
+  @@index([status])
+}
+
+model WebhookEvent {
+  id                  String             @id @default(uuid())
+  eventId             String             @unique
+  provider            String             @default("RAZORPAY")
+  eventType           String
+  payload             Json
+  status              String             @default("PROCESSED") // "PROCESSED" | "FAILED"
+  errorMessage        String?
+  createdAt           DateTime           @default(now())
+  processedAt         DateTime           @default(now())
+
+  @@index([eventId])
+  @@index([provider, eventType])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------
+// AUDIT LOGS & NOTIFICATIONS
+// ------------------------------------------------------------
+
+model AuditLog {
+  id                  String       @id @default(uuid())
+  actorId             String?
+  actorType           ActorType    @default(USER)
+  action              String       // e.g., "USER_LOGIN", "INVOICE_CREATE", "ADMIN_UPDATE_PLAN"
+  entity              String       // e.g., "Invoice", "Subscription", "User"
+  entityId            String?
+  ipAddress           String?
+  userAgent           String?
+  metadata            Json?
+  createdAt           DateTime     @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+model Notification {
+  id                  String              @id @default(uuid())
+  userId              String
+  title               String
+  body                String
+  channel             NotificationChannel @default(IN_APP)
+  isRead              Boolean             @default(false)
+  data                Json?
+  createdAt           DateTime            @default(now())
+
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// ------------------------------------------------------------
+// REFERRAL & COIN WALLET SYSTEM
+// ------------------------------------------------------------
+
+model ReferralConfig {
+  id                    String   @id @default(uuid())
+  minRewardCoins        Int      @default(100)
+  maxRewardCoins        Int      @default(500)
+  rewardStep            Int      @default(50)
+  rewardMode            String   @default("RANDOM") // "RANDOM" | "FIXED" | "ADMIN"
+  fixedRewardCoins      Int      @default(200)
+  coinsPerInr           Int      @default(100) // 100 Coins = 1 INR
+  minWithdrawalCoins    Int      @default(10000) // 10,000 Coins = 100 INR
+  eligibilityCondition  String   @default("ONBOARDING_COMPLETED")
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+}
+
+model Referral {
+  id              String         @id @default(uuid())
+  referrerUserId  String
+  referredUserId  String         @unique // One referred account cannot generate multiple rewards
+  referralCode    String
+  status          ReferralStatus @default(REGISTERED)
+  rewardCoins     Int            @default(0)
+  rewardedAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  referrer        User           @relation("Referrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referredUser    User           @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@index([referrerUserId])
+  @@index([referralCode])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Wallet {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  availableCoins      Int      @default(0)
+  pendingCoins        Int      @default(0)
+  totalEarnedCoins    Int      @default(0)
+  totalWithdrawnCoins Int      @default(0)
+  totalWithdrawnInr   Int      @default(0)
+  version             Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WalletTransaction {
+  id            String                @id @default(uuid())
+  userId        String
+  walletId      String
+  type          WalletTransactionType
+  coins         Int                   // Positive for credit, negative for debit
+  balanceAfter  Int
+  referenceType String?               // "REFERRAL" | "WITHDRAWAL" | "ADMIN" | "BONUS"
+  referenceId   String?
+  description   String
+  status        String                @default("COMPLETED")
+  adminId       String?
+  reason        String?
+  metadata      Json?
+  createdAt     DateTime              @default(now())
+
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Withdrawal {
+  id                 String           @id @default(uuid())
+  userId             String
+  coins              Int
+  amountInr          Int
+  status             WithdrawalStatus @default(PENDING)
+  payoutMethod       PayoutMethod     @default(UPI)
+  payoutAccount      String           // Masked bank account or UPI ID
+  accountHolderName  String?
+  payoutReference    String?          // UTR or bank reference ID
+  requestedAt        DateTime         @default(now())
+  processedAt        DateTime?
+  processedByAdminId String?
+  failureReason      String?
+  metadata           Json?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+

@@ -1,0 +1,6 @@
+{
+  "name": "BRANDX",
+  "description": "BRANDX is an all-in-one digital toolkit that helps businesses create professional designs, marketing content and business resources with the power of AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

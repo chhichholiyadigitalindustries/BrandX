@@ -1,0 +1,105 @@
+# ============================================================
+# BRANDX — REPOSITORY .GITIGNORE
+# ============================================================
+
+# Dependencies
+node_modules/
+backend/node_modules/
+.pnp
+.pnp.js
+
+# Production & Dev Build Outputs
+dist/
+build/
+backend/dist/
+dev-dist/
+*.tsbuildinfo
+.turbo
+.parcel-cache
+backend/prisma/seed.js
+backend/prisma/seed.d.ts
+backend/prisma/seed.js.map
+
+# Environment Variables & Secret Files (Strictly Excluded)
+.env
+.env.*
+!.env.example
+!.env.production.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+!backend/.env.production.example
+*.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+.env.neon.test
+
+# Cryptographic Keys & Certificates
+*.pem
+*.key
+*.cert
+*.crt
+*.keystore
+*.jks
+*serviceAccount*.json
+*firebase-adminsdk*.json
+*credentials*.json
+google-services.json
+GoogleService-Info.plist
+
+# Local Uploads & Ephemeral Scratch Files
+uploads/
+backend/uploads/
+scratch/
+tmp/
+temp/
+
+# SQLite & Local Test Databases
+prisma/*.db
+prisma/*.db-journal
+backend/prisma/*.db
+backend/prisma/*.db-journal
+**/.dataconnect/
+dataconnect/.dataconnect/
+
+# Logs
+logs/
+backend/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# Local Tooling, Emulators & AI IDE Cache
+.firebase/
+.claude/
+.gemini/
+
+# OS & Editor Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Mobile Builds & Keystores
+*.apk
+*.aab
+android/app/*.keystore
+android/app/*.jks

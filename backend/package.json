@@ -1,0 +1,58 @@
+{
+  "name": "brandx-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Production-ready backend for BrandX - All-in-One Business Super App for Indian Vyaparis & MSMEs",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:studio": "prisma studio",
+    "test": "tsx tests/runAllTests.ts"
+  },
+  "keywords": [
+    "brandx",
+    "backend",
+    "vyapari",
+    "msme",
+    "gst-billing",
+    "digital-khata",
+    "express",
+    "prisma",
+    "postgresql",
+    "typescript"
+  ],
+  "author": "BrandX Engineering Team",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^2.23.0",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "firebase-admin": "^14.4.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.9.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

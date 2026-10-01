@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    width: 100vw;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+  body {
+    overscroll-behavior-y: none;
+    background-color: #0b0f19;
+    color: #f8fafc;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* Light Theme Overrides */
+.light-theme {
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-subcard: #f1f5f9;
+  --border-card: #e2e8f0;
+  --text-main: #0f172a;
+  --text-sub: #475569;
+  --text-muted: #64748b;
+}
+
+.light-theme body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.light-theme .bg-\[\#0B0F19\] {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.light-theme .bg-\[\#131B2E\] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+}
+
+.light-theme .bg-\[\#1E293B\] {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .bg-\[\#0F172A\]\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #e2e8f0 !important;
+}
+
+.light-theme .bg-\[\#0B0F19\]\/90 {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: #e2e8f0 !important;
+}
+
+.light-theme .bg-\[\#111827\] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .text-white {
+  color: #0f172a !important;
+}
+
+.light-theme .text-slate-300,
+.light-theme .text-slate-400 {
+  color: #475569 !important;
+}
+
+.light-theme .border-white\/10,
+.light-theme .border-white\/15,
+.light-theme .border-white\/20 {
+  border-color: #e2e8f0 !important;
+}
+
+.light-theme .border-slate-800,
+.light-theme .border-slate-800\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+.light-theme input,
+.light-theme select,
+.light-theme textarea {
+  color: #0f172a !important;
+}
+
+.light-theme .bg-white\/5,
+.light-theme .bg-white\/10 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .bg-white\/10:hover,
+.light-theme .bg-white\/20:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Keep accent badge colors vibrant */
+.light-theme .bg-blue-600 {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+.light-theme .bg-blue-600 .text-white,
+.light-theme .bg-emerald-600 .text-white,
+.light-theme .bg-red-600 .text-white,
+.light-theme .bg-gradient-to-r .text-white,
+.light-theme .bg-gradient-to-tr .text-white {
+  color: #ffffff !important;
+}
+
+.font-display {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+.font-hindi {
+  font-family: 'Rozha One', serif;
+}
+
+/* Custom scrollbar hiding */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Tabular figures for financial accuracy */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shimmer animation for Skeleton Loaders */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.1) 37%,
+    rgba(255, 255, 255, 0.03) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.light-theme .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.08) 37%,
+    rgba(0, 0, 0, 0.04) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  header, nav, .pwa-banner, .offline-indicator, .no-print {
+    display: none !important;
+  }
+}
