@@ -15,7 +15,7 @@ import {
   User,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { auth, isFirebaseConfigured } from '../config/firebase';
+import { auth as staticAuth, isFirebaseConfigured, getFirebaseAuth } from '../config/firebase';
 
 export interface PhoneOtpSession {
   confirmationResult: ConfirmationResult | null;
@@ -30,10 +30,18 @@ class FirebaseAuthService {
   private currentContainerId: string = 'recaptcha-container';
 
   /**
+   * Dynamically resolves the active Firebase Auth instance.
+   * Prioritizes lazy initialization if static instance was not immediately available.
+   */
+  private get auth() {
+    return getFirebaseAuth() || staticAuth;
+  }
+
+  /**
    * Check if Firebase client is ready and configured
    */
   isConfigured(): boolean {
-    return isFirebaseConfigured && auth !== null;
+    return isFirebaseConfigured && this.auth !== null;
   }
 
   /**
@@ -81,7 +89,8 @@ class FirebaseAuthService {
    * Ensures only ONE RecaptchaVerifier is attached to the container at any given time.
    */
   async getOrCreateRecaptchaVerifier(containerId: string = 'recaptcha-container'): Promise<RecaptchaVerifier | null> {
-    if (!this.isConfigured() || !auth) {
+    const authInstance = this.auth;
+    if (!this.isConfigured() || !authInstance) {
       console.warn('[BrandX] Firebase Auth not configured. Please ensure VITE_FIREBASE_API_KEY is set in .env.');
       return null;
     }
@@ -109,7 +118,7 @@ class FirebaseAuthService {
     targetContainer.innerHTML = '';
 
     try {
-      this.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+      this.recaptchaVerifier = new RecaptchaVerifier(authInstance, containerId, {
         size: 'invisible',
         callback: () => {
           console.info('[BrandX] reCAPTCHA verified successfully');
@@ -154,7 +163,8 @@ class FirebaseAuthService {
     recaptchaContainerId: string = 'recaptcha-container',
     isResend: boolean = false
   ): Promise<{ success: boolean; error?: string }> {
-    if (!this.isConfigured() || !auth) {
+    const authInstance = this.auth;
+    if (!this.isConfigured() || !authInstance) {
       return {
         success: false,
         error: 'Firebase Authentication is not configured. Please verify that VITE_FIREBASE_API_KEY is configured in your .env file.',
@@ -200,7 +210,7 @@ class FirebaseAuthService {
         throw new Error('Could not initialize reCAPTCHA security verification. Please reload the page.');
       }
 
-      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, verifier);
+      const confirmationResult = await signInWithPhoneNumber(authInstance, formattedPhone, verifier);
       this.currentConfirmationResult = confirmationResult;
       console.info(`[BrandX] OTP request completed successfully for ${maskedPhone}`);
       return { success: true };
@@ -255,7 +265,8 @@ class FirebaseAuthService {
     email: string,
     password: string
   ): Promise<{ success: boolean; idToken?: string; user?: User; error?: string }> {
-    if (!this.isConfigured() || !auth) {
+    const authInstance = this.auth;
+    if (!this.isConfigured() || !authInstance) {
       return {
         success: false,
         error: 'Firebase Authentication is not configured. Please ensure VITE_FIREBASE_API_KEY is set in your .env file.',
@@ -263,7 +274,7 @@ class FirebaseAuthService {
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await signInWithEmailAndPassword(authInstance, email.trim(), password);
       const idToken = await userCredential.user.getIdToken();
       return {
         success: true,
@@ -286,7 +297,8 @@ class FirebaseAuthService {
     email: string,
     password: string
   ): Promise<{ success: boolean; idToken?: string; user?: User; error?: string }> {
-    if (!this.isConfigured() || !auth) {
+    const authInstance = this.auth;
+    if (!this.isConfigured() || !authInstance) {
       return {
         success: false,
         error: 'Firebase Authentication is not configured. Please ensure VITE_FIREBASE_API_KEY is set in your .env file.',
@@ -294,7 +306,7 @@ class FirebaseAuthService {
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await createUserWithEmailAndPassword(authInstance, email.trim(), password);
       const idToken = await userCredential.user.getIdToken();
       return {
         success: true,
@@ -314,21 +326,22 @@ class FirebaseAuthService {
    * Waits for Firebase Auth to initialize / restore session asynchronously
    */
   async waitForAuthReady(): Promise<User | null> {
-    if (!auth) return null;
-    if (auth.currentUser) return auth.currentUser;
-    if (typeof (auth as any).authStateReady === 'function') {
+    const authInstance = this.auth;
+    if (!authInstance) return null;
+    if (authInstance.currentUser) return authInstance.currentUser;
+    if (typeof (authInstance as any).authStateReady === 'function') {
       try {
-        await (auth as any).authStateReady();
-        return auth.currentUser;
+        await (authInstance as any).authStateReady();
+        return authInstance.currentUser;
       } catch {}
     }
     return new Promise((resolve) => {
-      const unsubscribe = onAuthStateChanged(auth!, (user) => {
+      const unsubscribe = onAuthStateChanged(authInstance, (user) => {
         unsubscribe();
         resolve(user);
       });
       // Safety timeout after 2500ms
-      setTimeout(() => resolve(auth?.currentUser || null), 2500);
+      setTimeout(() => resolve(authInstance?.currentUser || null), 2500);
     });
   }
 
@@ -336,8 +349,9 @@ class FirebaseAuthService {
    * Get current Firebase ID Token if user is logged in
    */
   async getCurrentIdToken(forceRefresh = false): Promise<string | null> {
-    if (!auth) return null;
-    let user = auth.currentUser;
+    const authInstance = this.auth;
+    if (!authInstance) return null;
+    let user = authInstance.currentUser;
     if (!user) {
       user = await this.waitForAuthReady();
     }
@@ -354,9 +368,10 @@ class FirebaseAuthService {
    */
   async signOut(): Promise<void> {
     this.currentConfirmationResult = null;
-    if (auth) {
+    const authInstance = this.auth;
+    if (authInstance) {
       try {
-        await fbSignOut(auth);
+        await fbSignOut(authInstance);
       } catch (err) {
         console.warn('[BrandX] Firebase signout error:', err);
       }

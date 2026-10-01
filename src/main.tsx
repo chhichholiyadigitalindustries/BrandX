@@ -17,6 +17,11 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
       }
     });
   }
+} else if ('serviceWorker' in navigator) {
+  // In production, prompt the service worker to check for new bundles on page load
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.update().catch(() => {});
+  });
 }
 
 createRoot(document.getElementById('root')!).render(
