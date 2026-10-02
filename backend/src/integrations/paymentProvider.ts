@@ -43,21 +43,51 @@ export interface PaymentProvider {
 }
 
 export class RazorpayPaymentProvider implements PaymentProvider {
-  private keyId: string;
-  private keySecret: string;
-  private webhookSecret: string;
+  public getKeyId(): string {
+    return (
+      process.env.RAZORPAY_KEY_ID ||
+      process.env.PAYMENT_KEY_ID ||
+      process.env.PAYMENT_PROVIDER_KEY ||
+      config.payment.providerKey ||
+      ''
+    ).trim();
+  }
 
-  constructor() {
-    this.keyId = config.payment.providerKey;
-    this.keySecret = config.payment.providerSecret;
-    this.webhookSecret = config.payment.webhookSecret;
+  public getKeySecret(): string {
+    return (
+      process.env.RAZORPAY_KEY_SECRET ||
+      process.env.PAYMENT_KEY_SECRET ||
+      process.env.PAYMENT_PROVIDER_SECRET ||
+      config.payment.providerSecret ||
+      ''
+    ).trim();
+  }
+
+  public getWebhookSecret(): string {
+    return (
+      process.env.RAZORPAY_WEBHOOK_SECRET ||
+      process.env.PAYMENT_WEBHOOK_SECRET ||
+      config.payment.webhookSecret ||
+      ''
+    ).trim();
   }
 
   public isConfigured(): boolean {
-    return Boolean(this.keyId && !this.keyId.includes('placeholder'));
+    const keyId = this.getKeyId();
+    const keySecret = this.getKeySecret();
+    return Boolean(
+      keyId &&
+      keySecret &&
+      !keyId.toLowerCase().includes('placeholder') &&
+      !keySecret.toLowerCase().includes('placeholder') &&
+      (keyId.startsWith('rzp_test_') || keyId.startsWith('rzp_live_'))
+    );
   }
 
   public async createOrder(params: CreateOrderParams): Promise<PaymentOrderResult> {
+    const keyId = this.getKeyId();
+    const keySecret = this.getKeySecret();
+
     if (!this.isConfigured()) {
       if (config.isProduction) {
         throw new Error('Payment gateway is not configured for production transactions.');
@@ -68,12 +98,12 @@ export class RazorpayPaymentProvider implements PaymentProvider {
         orderId: mockOrderId,
         amount: params.amount,
         currency: params.currency || 'INR',
-        keyId: this.keyId,
+        keyId,
       };
     }
 
     try {
-      const authHeader = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+      const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
       const response = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST',
         headers: {
@@ -97,7 +127,7 @@ export class RazorpayPaymentProvider implements PaymentProvider {
         orderId: data.id,
         amount: data.amount / 100,
         currency: data.currency,
-        keyId: this.keyId,
+        keyId,
       };
     } catch (error) {
       logger.error('Error creating Razorpay order:', error);
@@ -109,12 +139,13 @@ export class RazorpayPaymentProvider implements PaymentProvider {
         orderId: mockOrderId,
         amount: params.amount,
         currency: params.currency || 'INR',
-        keyId: this.keyId,
+        keyId,
       };
     }
   }
 
   public async verifyPayment(params: VerifyPaymentParams): Promise<PaymentVerificationResult> {
+    const keySecret = this.getKeySecret();
     if (!this.isConfigured()) {
       if (config.isProduction) {
         return {
@@ -142,7 +173,7 @@ export class RazorpayPaymentProvider implements PaymentProvider {
 
     try {
       const generatedSignature = crypto
-        .createHmac('sha256', this.keySecret)
+        .createHmac('sha256', keySecret)
         .update(`${params.orderId}|${params.paymentId}`)
         .digest('hex');
 
@@ -182,14 +213,15 @@ export class RazorpayPaymentProvider implements PaymentProvider {
   }
 
   public verifyWebhook(rawBody: string, signature: string): boolean {
-    if (!this.webhookSecret || this.webhookSecret.includes('placeholder')) {
+    const webhookSecret = this.getWebhookSecret();
+    if (!webhookSecret || webhookSecret.includes('placeholder')) {
       if (config.isProduction) {
         logger.error('CRITICAL: Webhook secret not configured in production mode. Rejecting incoming webhook.');
         return false;
       }
       return true;
     }
-    const expected = crypto.createHmac('sha256', this.webhookSecret).update(rawBody).digest('hex');
+    const expected = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
     return expected === signature;
   }
 }

@@ -209,6 +209,7 @@ export class SubscriptionService {
       currency: order.currency,
       keyId: order.keyId,
       planCode: plan.code,
+      planName: dbPlan.name,
       transactionId: tx.id,
       plan: {
         code: plan.code,

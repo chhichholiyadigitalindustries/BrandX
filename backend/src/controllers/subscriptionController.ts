@@ -55,7 +55,11 @@ export class SubscriptionController {
       );
       sendSuccess(res, order, 'Payment order created successfully', 201);
     } catch (error: any) {
-      sendError(res, error.message, error.status || 400, 'ORDER_CREATION_FAILED');
+      const statusCode =
+        error.message?.includes('not configured') || error.message?.includes('not initialized')
+          ? 503
+          : error.status || 400;
+      sendError(res, error.message, statusCode, 'ORDER_CREATION_FAILED');
     }
   }
 

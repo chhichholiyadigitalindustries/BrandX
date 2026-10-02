@@ -42,14 +42,34 @@ export const ProModal: React.FC<ProModalProps> = ({
       // 1. Create order on backend
       const order = await subscriptionApi.checkout(planCode);
 
-      // 2. Check if Razorpay SDK is loaded on window
-      if ((window as any).Razorpay && order.keyId && order.keyId !== 'rzp_test_placeholder') {
+      // Ensure Razorpay SDK script is loaded
+      if (!(window as any).Razorpay) {
+        await new Promise<void>((resolve) => {
+          const existingScript = document.querySelector('script[src*="checkout.razorpay.com"]');
+          if (existingScript) {
+            existingScript.addEventListener('load', () => resolve());
+            existingScript.addEventListener('error', () => resolve());
+            setTimeout(resolve, 2000);
+            return;
+          }
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => resolve();
+          document.body.appendChild(script);
+          setTimeout(resolve, 3000);
+        });
+      }
+
+      // 2. Check if Razorpay SDK is loaded on window and keyId is valid
+      if ((window as any).Razorpay && order.keyId && !order.keyId.includes('placeholder')) {
         const options = {
           key: order.keyId,
-          amount: order.amount * 100, // paise
+          amount: order.amount > 1000 ? order.amount : Math.round(order.amount * 100), // paise
           currency: order.currency || 'INR',
           name: 'BrandX Pro',
-          description: `${order.planName} Subscription`,
+          description: `${order.planName || (planCode === 'pro_yearly' ? 'Pro Annual' : 'Pro Monthly')} Subscription`,
           order_id: order.orderId,
           prefill: order.prefill || {},
           handler: async (response: any) => {
@@ -97,8 +117,18 @@ export const ProModal: React.FC<ProModalProps> = ({
         return;
       }
 
-      // If running in production mode and Razorpay SDK is not loaded, do NOT activate fake Pro
+      // If running in production mode and Razorpay is not configured or SDK failed
       if (isProd) {
+        if (!order.keyId || order.keyId.includes('placeholder')) {
+          throw new Error(
+            'Payment gateway (Razorpay) is not configured on the server. Please verify RAZORPAY_KEY_ID in Render.'
+          );
+        }
+        if (!(window as any).Razorpay) {
+          throw new Error(
+            'Payment gateway (Razorpay) SDK could not be loaded in browser. Please check your internet connection or adblocker.'
+          );
+        }
         throw new Error(
           'Payment gateway (Razorpay) is not initialized. Please ensure your internet connection is active, or try again shortly.'
         );

@@ -55,9 +55,20 @@ export const config = {
       | 'phonepe'
       | 'stripe'
       | 'mock',
-    providerKey: process.env.PAYMENT_KEY_ID || process.env.PAYMENT_PROVIDER_KEY || 'rzp_test_placeholder',
-    providerSecret: process.env.PAYMENT_KEY_SECRET || process.env.PAYMENT_PROVIDER_SECRET || 'rzp_test_placeholder_secret',
-    webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET || 'whsec_placeholder',
+    providerKey:
+      process.env.RAZORPAY_KEY_ID ||
+      process.env.PAYMENT_KEY_ID ||
+      process.env.PAYMENT_PROVIDER_KEY ||
+      '',
+    providerSecret:
+      process.env.RAZORPAY_KEY_SECRET ||
+      process.env.PAYMENT_KEY_SECRET ||
+      process.env.PAYMENT_PROVIDER_SECRET ||
+      '',
+    webhookSecret:
+      process.env.RAZORPAY_WEBHOOK_SECRET ||
+      process.env.PAYMENT_WEBHOOK_SECRET ||
+      '',
     currency: process.env.PAYMENT_CURRENCY || 'INR',
   },
 

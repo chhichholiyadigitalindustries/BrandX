@@ -96,6 +96,29 @@ export function validateEnvironment(): void {
     );
   }
 
+  // 7. Payment Gateway (Razorpay) - Validated without crashing startup
+  const razorpayKey =
+    process.env.RAZORPAY_KEY_ID ||
+    process.env.PAYMENT_KEY_ID ||
+    process.env.PAYMENT_PROVIDER_KEY;
+  const razorpaySecret =
+    process.env.RAZORPAY_KEY_SECRET ||
+    process.env.PAYMENT_KEY_SECRET ||
+    process.env.PAYMENT_PROVIDER_SECRET;
+
+  if (!razorpayKey || !razorpaySecret || razorpayKey.includes('placeholder') || razorpaySecret.includes('placeholder')) {
+    console.warn(
+      '\n⚠️  [WARN] Razorpay credentials (RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET) are missing or set to placeholder in production.'
+    );
+    console.warn(
+      '   Subscription checkout orders will return controlled HTTP 503 until keys are configured in Render.\n'
+    );
+  } else if (!razorpayKey.startsWith('rzp_test_') && !razorpayKey.startsWith('rzp_live_')) {
+    console.warn(
+      '\n⚠️  [WARN] RAZORPAY_KEY_ID does not match expected Razorpay key format (should start with "rzp_test_" or "rzp_live_").\n'
+    );
+  }
+
   if (errors.length > 0) {
     console.error('\n========================================================');
     console.error('❌ [FATAL] PRODUCTION ENVIRONMENT CONFIGURATION ERRORS:');

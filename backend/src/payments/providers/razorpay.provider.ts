@@ -20,22 +20,47 @@ import { PaymentGateway, PaymentMethod, PaymentStatus } from '@prisma/client';
 
 export class RazorpayPaymentProvider implements PaymentProvider {
   public readonly gatewayName = PaymentGateway.RAZORPAY;
-  private keyId: string;
-  private keySecret: string;
-  private webhookSecret: string;
 
-  constructor() {
-    this.keyId = config.payment.providerKey;
-    this.keySecret = config.payment.providerSecret;
-    this.webhookSecret = config.payment.webhookSecret;
+  public getKeyId(): string {
+    return (
+      process.env.RAZORPAY_KEY_ID ||
+      process.env.PAYMENT_KEY_ID ||
+      process.env.PAYMENT_PROVIDER_KEY ||
+      config.payment.providerKey ||
+      ''
+    ).trim();
+  }
+
+  public getKeySecret(): string {
+    return (
+      process.env.RAZORPAY_KEY_SECRET ||
+      process.env.PAYMENT_KEY_SECRET ||
+      process.env.PAYMENT_PROVIDER_SECRET ||
+      config.payment.providerSecret ||
+      ''
+    ).trim();
+  }
+
+  public getWebhookSecret(): string {
+    return (
+      process.env.RAZORPAY_WEBHOOK_SECRET ||
+      process.env.PAYMENT_WEBHOOK_SECRET ||
+      config.payment.webhookSecret ||
+      ''
+    ).trim();
   }
 
   public isConfigured(): boolean {
+    const keyId = this.getKeyId();
+    const keySecret = this.getKeySecret();
     return Boolean(
-      this.keyId &&
-      this.keySecret &&
-      !this.keyId.includes('placeholder') &&
-      !this.keySecret.includes('placeholder')
+      keyId &&
+      keySecret &&
+      !keyId.toLowerCase().includes('placeholder') &&
+      !keySecret.toLowerCase().includes('placeholder') &&
+      !keyId.toLowerCase().includes('mock') &&
+      !keySecret.toLowerCase().includes('mock') &&
+      (keyId.startsWith('rzp_test_') || keyId.startsWith('rzp_live_'))
     );
   }
 
@@ -45,21 +70,32 @@ export class RazorpayPaymentProvider implements PaymentProvider {
   public async createOrder(params: CreateOrderParams): Promise<PaymentOrderResult> {
     const currency = params.currency || config.payment.currency || 'INR';
     const amountInPaise = Math.round(params.amount * 100);
+    const keyId = this.getKeyId();
+    const keySecret = this.getKeySecret();
 
     if (!this.isConfigured()) {
-      logger.info('Razorpay credentials unconfigured or test placeholder; using development checkout order.');
+      const isProd = config.isProduction || process.env.NODE_ENV === 'production';
+      if (isProd) {
+        logger.error('CRITICAL: Razorpay payment gateway credentials missing or unconfigured in production.');
+        throw new Error(
+          'Payment gateway (Razorpay) is not initialized or configured on the server. Please verify RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render environment variables.'
+        );
+      }
+
+      // In non-production development/test environments ONLY
+      logger.info('Razorpay credentials unconfigured; using development checkout order for non-production environment.');
       const mockOrderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       return {
         orderId: mockOrderId,
         amount: amountInPaise,
         currency,
-        keyId: this.keyId || 'rzp_test_placeholder',
+        keyId: keyId || 'rzp_test_mock_fallback',
         gateway: this.gatewayName,
       };
     }
 
     try {
-      const authHeader = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+      const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
       const response = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST',
         headers: {
@@ -84,7 +120,7 @@ export class RazorpayPaymentProvider implements PaymentProvider {
         orderId: data.id,
         amount: data.amount,
         currency: data.currency,
-        keyId: this.keyId,
+        keyId,
         gateway: this.gatewayName,
         rawResponse: data,
       };
@@ -100,6 +136,7 @@ export class RazorpayPaymentProvider implements PaymentProvider {
    */
   public async verifyPayment(params: VerifyPaymentParams): Promise<PaymentVerificationResult> {
     const { orderId, paymentId, signature } = params;
+    const keySecret = this.getKeySecret();
 
     if (!orderId || !paymentId) {
       return {
@@ -116,6 +153,20 @@ export class RazorpayPaymentProvider implements PaymentProvider {
     }
 
     if (!this.isConfigured()) {
+      if (config.isProduction || process.env.NODE_ENV === 'production') {
+        return {
+          isValid: false,
+          paymentId,
+          orderId,
+          amount: 0,
+          currency: 'INR',
+          status: PaymentStatus.FAILED,
+          method: PaymentMethod.UPI,
+          gateway: this.gatewayName,
+          error: 'Payment gateway (Razorpay) is not configured in production.',
+        };
+      }
+
       // In development / test without keys, check signature if provided or allow valid test patterns
       if (
         signature &&
@@ -165,7 +216,7 @@ export class RazorpayPaymentProvider implements PaymentProvider {
 
     try {
       const expectedSignature = crypto
-        .createHmac('sha256', this.keySecret)
+        .createHmac('sha256', keySecret)
         .update(`${orderId}|${paymentId}`)
         .digest('hex');
 
@@ -207,6 +258,8 @@ export class RazorpayPaymentProvider implements PaymentProvider {
    */
   public async refundPayment(params: RefundParams): Promise<RefundResult> {
     const amountInPaise = Math.round(params.amount * 100);
+    const keyId = this.getKeyId();
+    const keySecret = this.getKeySecret();
 
     if (!this.isConfigured()) {
       const mockRefundId = `ref_dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -221,7 +274,7 @@ export class RazorpayPaymentProvider implements PaymentProvider {
     }
 
     try {
-      const authHeader = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+      const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
       const response = await fetch(`https://api.razorpay.com/v1/payments/${params.paymentId}/refund`, {
         method: 'POST',
         headers: {
@@ -262,7 +315,8 @@ export class RazorpayPaymentProvider implements PaymentProvider {
    * HMAC_SHA256(rawBody, webhookSecret) === x-razorpay-signature
    */
   public verifyWebhookSignature(rawBody: string, signature: string): WebhookVerificationResult {
-    if (!this.webhookSecret || this.webhookSecret.includes('placeholder')) {
+    const webhookSecret = this.getWebhookSecret();
+    if (!webhookSecret || webhookSecret.includes('placeholder')) {
       // In dev mode without webhook secret, allow if signature is not explicitly malformed
       return {
         isValid:
@@ -273,7 +327,7 @@ export class RazorpayPaymentProvider implements PaymentProvider {
     }
 
     try {
-      const expected = crypto.createHmac('sha256', this.webhookSecret).update(rawBody).digest('hex');
+      const expected = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
       const isValid =
         expected.length === signature.length &&
         crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
