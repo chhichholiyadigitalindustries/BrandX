@@ -14,6 +14,7 @@ import { runFirebaseAuthTests } from './firebaseAuth.test.js';
 import { runAdminTests } from './admin.test.js';
 import { runReferralWalletTests } from './referralWallet.test.js';
 import { runSecurityGradingTests } from './securityGrading.test.js';
+import { runKhataSharingTests } from './khataSharing.test.js';
 
 async function runAll() {
   console.log('========================================================');
@@ -23,6 +24,7 @@ async function runAll() {
   try {
     testGstCalculations();
     testKhataCalculations();
+    runKhataSharingTests();
     await testAuthAndSecurity();
     await runFirebaseAuthTests();
     await testBusinessModule();

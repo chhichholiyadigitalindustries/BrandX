@@ -118,9 +118,16 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
     }) as any;
 
     prisma.subscriptionPlan.findFirst = (async ({ where }: any) => {
+      if (!where) return memoryStore.plans.values().next().value || null;
       for (const p of memoryStore.plans.values()) {
         if (where.code && p.code.toLowerCase() === where.code.toLowerCase()) return p;
         if (where.id && p.id === where.id) return p;
+        if (where.OR && Array.isArray(where.OR)) {
+          for (const condition of where.OR) {
+            if (condition.code && p.code.toLowerCase() === condition.code.toLowerCase()) return p;
+            if (condition.id && p.id === condition.id) return p;
+          }
+        }
       }
       return null;
     }) as any;

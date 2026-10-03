@@ -5,7 +5,7 @@ import { EmptyState } from '../components/EmptyState';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { ExpenseBook } from '../components/ExpenseBook';
-import { shareKhataStatementToWhatsApp } from '../utils/posterShare';
+import { shareKhataStatementToWhatsApp, shareKhataTextToWhatsApp } from '../utils/posterShare';
 import { WhatsAppShareGuideModal } from '../components/WhatsAppShareGuideModal';
 import { customerKhataApi, authApi } from '../services/api';
 
@@ -230,33 +230,55 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
   const handleSendWhatsAppReminder = async (customer: KhataCustomer, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setSharingCustomerId(customer.id);
-    showToast(isHindi ? '🖼️ ग्राहक का खाता स्टेटमेंट (Image) तैयार हो रहा है...' : '🖼️ Generating Khata Statement Image...');
+    showToast(isHindi ? '🖼️ ग्राहक का खाता स्टेटमेंट तैयार हो रहा है...' : '🖼️ Generating Branded Khata Statement...');
 
+    let targetCustomer = customer;
     try {
-      let reminderCaption = '';
-      if (authApi.isAuthenticated()) {
+      // If transactions are not yet populated on this customer object, fetch full details from backend
+      if ((!targetCustomer.transactions || targetCustomer.transactions.length === 0) && authApi.isAuthenticated()) {
         try {
-          const reminderRes = await customerKhataApi.generatePaymentReminder(customer.id, customer.totalDue);
+          const custRes = await customerKhataApi.getCustomer(customer.id);
+          if (custRes.success && custRes.data) {
+            targetCustomer = customerKhataApi.backendToFrontendCustomer(custRes.data);
+            onUpdateCustomers(customers.map(c => c.id === customer.id ? targetCustomer : c));
+            if (selectedCustomer?.id === customer.id) {
+              setSelectedCustomer(targetCustomer);
+            }
+          }
+        } catch (fetchErr) {
+          console.warn('[Khata] Could not fetch detailed customer transactions prior to share:', fetchErr);
+        }
+      }
+
+      let reminderCaption = '';
+      if (authApi.isAuthenticated() && targetCustomer.totalDue > 0) {
+        try {
+          const reminderRes = await customerKhataApi.generatePaymentReminder(targetCustomer.id, targetCustomer.totalDue);
           if (reminderRes.success && reminderRes.data) {
             reminderCaption = isHindi ? reminderRes.data.messageHindi : reminderRes.data.messageEnglish;
           }
         } catch {}
       }
 
-      const res = await shareKhataStatementToWhatsApp(customer, business);
+      const res = await shareKhataStatementToWhatsApp(targetCustomer, business, reminderCaption);
       showToast(res.message);
       if (res.method === 'clipboard-copy' || res.method === 'download-only') {
         setWhatsAppGuide({
           isOpen: true,
           caption: reminderCaption || res.caption || '',
           imageUrl: res.dataUrl || '',
-          title: `Khata Statement - ${customer.name}`,
-          phoneNumber: customer.phone,
+          title: `Khata Statement - ${targetCustomer.name}`,
+          phoneNumber: targetCustomer.phone,
         });
       }
     } catch (err: any) {
-      console.error('Khata share error:', err);
-      showToast('Khata share error: ' + (err.message || 'Failed'));
+      console.error('Khata share unexpected error, falling back to text:', err);
+      try {
+        const textFallback = shareKhataTextToWhatsApp(targetCustomer, business);
+        showToast(textFallback.message);
+      } catch (fbErr: any) {
+        showToast('Khata share error: ' + (err.message || 'Failed'));
+      }
     } finally {
       setSharingCustomerId(null);
     }
@@ -572,15 +594,13 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
                       </span>
                     </div>
 
-                    {hasDue && (
-                      <button
-                        onClick={(e) => handleSendWhatsAppReminder(cust, e)}
-                        title="Send 1-Click WhatsApp Reminder"
-                        className="p-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center shadow cursor-pointer"
-                      >
-                        <span className="text-base">💬</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => handleSendWhatsAppReminder(cust, e)}
+                      title={hasDue ? (isHindi ? "व्हाट्सएप तकादा भेजें" : "Send 1-Click WhatsApp Reminder") : (isHindi ? "स्टेटमेंट शेयर करें" : "Share Branded Statement")}
+                      className="p-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center shadow cursor-pointer"
+                    >
+                      <span className="text-base">💬</span>
+                    </button>
 
                     <span className="material-symbols-outlined text-slate-400 text-[18px] group-hover:translate-x-0.5 transition-transform">
                       chevron_right
@@ -655,22 +675,21 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleSendWhatsAppReminder(selectedCustomer)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow transition-all active:scale-95 cursor-pointer"
+                  title="Share Branded Statement to WhatsApp"
+                >
+                  <span>💬</span>
+                  <span>{selectedCustomer.totalDue > 0 ? t.sendReminder : (isHindi ? 'स्टेटमेंट शेयर करें' : 'Share Statement')}</span>
+                </button>
                 {selectedCustomer.totalDue > 0 && (
-                  <>
-                    <button
-                      onClick={() => handleSendWhatsAppReminder(selectedCustomer)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow transition-all active:scale-95 cursor-pointer"
-                    >
-                      <span>💬</span>
-                      <span>{t.sendReminder}</span>
-                    </button>
-                    <button
-                      onClick={() => setCustomerToClear(selectedCustomer)}
-                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer"
-                    >
-                      {t.clearBalance}
-                    </button>
-                  </>
+                  <button
+                    onClick={() => setCustomerToClear(selectedCustomer)}
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer"
+                  >
+                    {t.clearBalance}
+                  </button>
                 )}
               </div>
             </div>

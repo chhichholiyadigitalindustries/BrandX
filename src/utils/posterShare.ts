@@ -92,6 +92,28 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
+ * Loads an image with strict timeout and CORS safety to avoid blocking or canvas tainting
+ */
+function loadSafeImage(src: string, timeoutMs = 2500): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Image load timeout')), timeoutMs);
+    const img = new Image();
+    if (!src.startsWith('data:')) {
+      img.crossOrigin = 'anonymous';
+    }
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = (e) => {
+      clearTimeout(timer);
+      reject(e);
+    };
+    img.src = src;
+  });
+}
+
+/**
  * Generates a full high-resolution (1080x1920 9:16) branded poster image
  * with Suvichar quote, headline, and business stamp on HTML5 canvas.
  */
@@ -273,14 +295,122 @@ export async function generateBrandedPosterBlob(
 }
 
 /**
- * Generates a clean, crisp visual Khata Statement image on HTML5 Canvas
+ * Draws a crisp, self-contained QR code visual on Canvas with finder patterns and data modules
+ */
+function drawUpiQrCode(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number
+) {
+  // White rounded background card
+  ctx.fillStyle = '#FFFFFF';
+  drawRoundedRect(ctx, x, y, size, size, 14);
+  ctx.fill();
+
+  const pad = 14;
+  const innerSize = size - pad * 2;
+  const finderSize = Math.floor(innerSize * 0.28);
+
+  const drawFinder = (fx: number, fy: number) => {
+    ctx.fillStyle = '#0F172A';
+    drawRoundedRect(ctx, fx, fy, finderSize, finderSize, 6);
+    ctx.fill();
+
+    const wGap = Math.floor(finderSize * 0.2);
+    ctx.fillStyle = '#FFFFFF';
+    drawRoundedRect(ctx, fx + wGap, fy + wGap, finderSize - wGap * 2, finderSize - wGap * 2, 4);
+    ctx.fill();
+
+    const cGap = Math.floor(finderSize * 0.35);
+    ctx.fillStyle = '#0F172A';
+    drawRoundedRect(ctx, fx + cGap, fy + cGap, finderSize - cGap * 2, finderSize - cGap * 2, 2);
+    ctx.fill();
+  };
+
+  // Top-Left, Top-Right, Bottom-Left finders
+  drawFinder(x + pad, y + pad);
+  drawFinder(x + size - pad - finderSize, y + pad);
+  drawFinder(x + pad, y + size - pad - finderSize);
+
+  // Data modules
+  const moduleCols = 15;
+  const cellSize = Math.floor(innerSize / moduleCols);
+  ctx.fillStyle = '#0F172A';
+
+  for (let r = 0; r < moduleCols; r++) {
+    for (let c = 0; c < moduleCols; c++) {
+      const inTL = r < 5 && c < 5;
+      const inTR = r < 5 && c >= moduleCols - 5;
+      const inBL = r >= moduleCols - 5 && c < 5;
+      if (inTL || inTR || inBL) continue;
+
+      if ((r * 7 + c * 13 + (r + c) % 3) % 2 === 0) {
+        ctx.fillRect(
+          x + pad + c * cellSize + 1,
+          y + pad + r * cellSize + 1,
+          cellSize - 2,
+          cellSize - 2
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Generates a high-quality, professional branded Udhar Khata Statement image on HTML5 Canvas.
+ * Dynamically computes heights so transaction content, balances, and UPI sections are never clipped.
  */
 export async function generateKhataStatementBlob(
   customer: KhataCustomer,
   business?: BusinessProfile
 ): Promise<{ blob: Blob; dataUrl: string }> {
   const width = 1080;
-  const height = 1420;
+  const cardPadding = 48;
+  const contentWidth = width - cardPadding * 2; // 984px
+
+  // 1. Calculations: Total Udhar, Total Jama, Current Baaki
+  let txUdhar = 0;
+  let txJama = 0;
+  // Sort transactions newest first so recent transactions are prioritized
+  const allTxs = [...(customer.transactions || [])].sort((a, b) => {
+    const tA = new Date(a.date || (a as any).createdAt || 0).getTime();
+    const tB = new Date(b.date || (b as any).createdAt || 0).getTime();
+    if (isNaN(tA) || isNaN(tB)) return 0;
+    return tB - tA;
+  });
+
+  for (const tx of allTxs) {
+    const amt = Math.max(0, Number(tx.amount) || 0);
+    const t = String(tx.type || '').toLowerCase();
+    if (t === 'give' || t === 'udhar' || t === 'udhaar') {
+      txUdhar += amt;
+    } else if (t === 'receive' || t === 'jama') {
+      txJama += amt;
+    }
+  }
+  const currentBaaki = Math.max(0, Number(customer.totalDue) || 0);
+  const totalJama = txJama;
+  const totalUdhar = Math.max(txUdhar, currentBaaki + totalJama);
+
+  // Recent transactions to render (up to 8)
+  const recentTxs = allTxs.slice(0, 8);
+  const hasMoreTxs = allTxs.length > 8;
+
+  // Shop UPI details
+  const shopUpiId = (business?.upiId || '').trim();
+  const hasUpi = Boolean(shopUpiId);
+
+  // 2. Dynamic Height Calculation to prevent clipping or overlapping
+  const shopCardH = 150;
+  const custCardH = 160;
+  const summaryH = 140;
+  const txTableHeight =
+    44 + 12 + 48 + (recentTxs.length === 0 ? 70 : recentTxs.length * 62) + (hasMoreTxs ? 36 : 0);
+  const upiSectionHeight = hasUpi ? (24 + 250) : 0;
+  const totalCalculatedHeight =
+    40 + shopCardH + 20 + custCardH + 20 + summaryH + 24 + txTableHeight + upiSectionHeight + 24 + 50 + 40;
+  const height = Math.max(1080, Math.ceil(totalCalculatedHeight));
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -288,244 +418,416 @@ export async function generateKhataStatementBlob(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas context not available');
 
-  // Background gradient: clean, premium navy/slate
+  // Background Gradient
   const bgGrad = ctx.createLinearGradient(0, 0, width, height);
   bgGrad.addColorStop(0, '#0F172A');
+  bgGrad.addColorStop(0.5, '#0B1120');
   bgGrad.addColorStop(1, '#020617');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, width, height);
 
   // Top Accent Bar
   const accentGrad = ctx.createLinearGradient(0, 0, width, 0);
-  accentGrad.addColorStop(0, '#3B82F6');
-  accentGrad.addColorStop(0.5, '#6366F1');
-  accentGrad.addColorStop(1, '#8B5CF6');
+  accentGrad.addColorStop(0, '#2563EB');
+  accentGrad.addColorStop(0.5, '#4F46E5');
+  accentGrad.addColorStop(1, '#7C3AED');
   ctx.fillStyle = accentGrad;
   ctx.fillRect(0, 0, width, 12);
 
-  // 1. Business Header Block
-  ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
-  drawRoundedRect(ctx, 48, 40, width - 96, 150, 20);
+  // -------------------------------------------------------------
+  // 1. SHOP BRANDING HEADER
+  // -------------------------------------------------------------
+  const shopCardY = 40;
+  ctx.fillStyle = 'rgba(30, 41, 59, 0.75)';
+  drawRoundedRect(ctx, cardPadding, shopCardY, contentWidth, shopCardH, 20);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Shop Name & Verified Stamp
-  const shopName = business?.name || 'BrandX Merchant Store';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '900 40px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(shopName, 80, 100);
+  // Try loading shop logo if provided with timeout safety; NEVER draw a placeholder logo
+  let logoImg: HTMLImageElement | null = null;
+  if (business?.logoUrl && business.logoUrl.trim().length > 0) {
+    try {
+      logoImg = await loadSafeImage(business.logoUrl.trim(), 2000);
+    } catch {
+      logoImg = null;
+    }
+  }
 
+  const hasLogo = Boolean(logoImg);
+  const logoSize = 74;
+  const logoX = cardPadding + 24;
+  const logoY = shopCardY + (shopCardH - logoSize) / 2;
+
+  if (hasLogo && logoImg) {
+    ctx.save();
+    drawRoundedRect(ctx, logoX, logoY, logoSize, logoSize, 14);
+    ctx.clip();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(logoX, logoY, logoSize, logoSize);
+    ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1.5;
+    drawRoundedRect(ctx, logoX, logoY, logoSize, logoSize, 14);
+    ctx.stroke();
+  }
+
+  // Shop Name (Exact name from authenticated profile; NEVER use "BrandX")
+  const shopTextX = hasLogo ? logoX + logoSize + 22 : cardPadding + 28;
+  const rawShopName = business?.name?.trim() || '';
+  const isBrandXShopName = /^brandx(\s+store)?$/i.test(rawShopName);
+  const shopName = (!rawShopName || isBrandXShopName) ? 'Vyapar Khata' : rawShopName;
+
+  ctx.fillStyle = '#FFFFFF';
+  if (shopName.length > 28) {
+    ctx.font = 'bold 28px "Segoe UI", Roboto, sans-serif';
+  } else if (shopName.length > 18) {
+    ctx.font = 'bold 32px "Segoe UI", Roboto, sans-serif';
+  } else {
+    ctx.font = '900 38px "Segoe UI", Roboto, sans-serif';
+  }
+
+  // Prevent overlapping badges by measuring & truncating if exceptionally long
+  const maxShopWidth = contentWidth - (shopTextX - cardPadding) - 210;
+  let displayShopName = shopName;
+  while (displayShopName.length > 5 && ctx.measureText(displayShopName).width > maxShopWidth) {
+    displayShopName = displayShopName.slice(0, -1);
+  }
+  if (displayShopName.length < shopName.length) displayShopName += '...';
+  ctx.fillText(displayShopName, shopTextX, shopCardY + 65);
+
+  // Shop Category, Address, Phone
   ctx.fillStyle = '#94A3B8';
-  ctx.font = '500 22px "Segoe UI", Roboto, sans-serif';
+  ctx.font = '500 20px "Segoe UI", Roboto, sans-serif';
   const shopSub = [
     business?.category || 'Retail Store',
     business?.address ? `📍 ${business.address}` : '',
     business?.phone ? `📞 +91 ${business.phone}` : '',
   ].filter(Boolean).join('  •  ');
-  ctx.fillText(shopSub, 80, 145);
 
-  // Document Badge (Right Header)
-  ctx.fillStyle = '#3B82F6';
-  drawRoundedRect(ctx, width - 48 - 250, 68, 220, 48, 12);
-  ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 20px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('KHATA STATEMENT', width - 48 - 232, 100);
+  const maxSubWidth = contentWidth - (shopTextX - cardPadding) - 40;
+  let displaySub = shopSub;
+  while (displaySub.length > 10 && ctx.measureText(displaySub).width > maxSubWidth) {
+    displaySub = displaySub.slice(0, -1);
+  }
+  if (displaySub.length < shopSub.length) displaySub += '...';
+  ctx.fillText(displaySub, shopTextX, shopCardY + 105);
 
-  // 2. Customer Summary Card
-  const custCardY = 215;
-  ctx.fillStyle = '#1E293B';
-  drawRoundedRect(ctx, 48, custCardY, width - 96, 160, 20);
+  // Verified Store Badge on Top Right
+  const badgeW = 180;
+  const badgeH = 38;
+  const badgeX = cardPadding + contentWidth - badgeW - 20;
+  const badgeY = shopCardY + 28;
+  ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 10);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+  ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Customer Avatar Circle
-  const initials = customer.name.slice(0, 2).toUpperCase();
-  ctx.fillStyle = customer.totalDue > 0 ? '#EF4444' : '#10B981';
-  ctx.beginPath();
-  ctx.arc(110, custCardY + 80, 44, 0, Math.PI * 2);
+  ctx.fillStyle = '#34D399';
+  ctx.font = 'bold 15px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('VERIFIED STORE ✓', badgeX + 18, badgeY + 24);
+
+  // -------------------------------------------------------------
+  // 2. KHATA HEADER & CUSTOMER DETAILS
+  // -------------------------------------------------------------
+  const custCardY = shopCardY + shopCardH + 20;
+  ctx.fillStyle = '#1E293B';
+  drawRoundedRect(ctx, cardPadding, custCardY, contentWidth, custCardH, 20);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Khata Header Badges: "Udhar Khata" & "Customer Statement"
+  const pillW = 145;
+  const pillH = 32;
+  ctx.fillStyle = '#3B82F6';
+  drawRoundedRect(ctx, cardPadding + 24, custCardY + 20, pillW, pillH, 8);
   ctx.fill();
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 32px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(initials, initials.length === 1 ? 98 : 90, custCardY + 92);
-
-  // Customer Name & Phone
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 36px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(customer.name, 180, custCardY + 70);
+  ctx.font = 'bold 15px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('UDHAR KHATA', cardPadding + 34, custCardY + 42);
 
   ctx.fillStyle = '#94A3B8';
-  ctx.font = '500 24px "Segoe UI", Roboto, monospace';
-  ctx.fillText(`Customer Phone: +91 ${customer.phone}`, 180, custCardY + 115);
+  ctx.font = 'bold 15px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('•   CUSTOMER STATEMENT', cardPadding + 24 + pillW + 14, custCardY + 42);
 
   // Statement Date on Right
   const todayStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  ctx.font = '500 22px "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#64748B';
-  ctx.fillText(`Statement Date: ${todayStr}`, width - 380, custCardY + 90);
+  ctx.font = '500 18px "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = '#94A3B8';
+  const dateStr = `Date: ${todayStr}`;
+  const dateW = ctx.measureText(dateStr).width;
+  ctx.fillText(dateStr, cardPadding + contentWidth - dateW - 24, custCardY + 42);
 
-  // 3. Balance Hero Box
-  const balanceY = 400;
-  const isDue = customer.totalDue > 0;
-  ctx.fillStyle = isDue ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)';
-  drawRoundedRect(ctx, 48, balanceY, width - 96, 140, 20);
+  // Customer Avatar Initials
+  const custAvatarX = cardPadding + 26;
+  const custAvatarY = custCardY + 70;
+  const custAvatarSize = 64;
+  ctx.fillStyle = currentBaaki > 0 ? '#EF4444' : '#10B981';
+  ctx.beginPath();
+  ctx.arc(custAvatarX + custAvatarSize / 2, custAvatarY + custAvatarSize / 2, custAvatarSize / 2, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = isDue ? '#EF4444' : '#10B981';
-  ctx.lineWidth = 2;
+
+  const custInitials = (customer.name || 'C').slice(0, 2).toUpperCase();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 24px "Segoe UI", Roboto, sans-serif';
+  const initW = ctx.measureText(custInitials).width;
+  ctx.fillText(custInitials, custAvatarX + (custAvatarSize - initW) / 2, custAvatarY + 40);
+
+  // Customer Name (graceful scaling for long names)
+  const custName = customer.name?.trim() || 'Valued Customer';
+  ctx.fillStyle = '#FFFFFF';
+  if (custName.length > 25) {
+    ctx.font = 'bold 26px "Segoe UI", Roboto, sans-serif';
+  } else if (custName.length > 18) {
+    ctx.font = 'bold 30px "Segoe UI", Roboto, sans-serif';
+  } else {
+    ctx.font = 'bold 34px "Segoe UI", Roboto, sans-serif';
+  }
+  const maxCustNameW = contentWidth - (custAvatarSize + 60) - 20;
+  let displayCustName = custName;
+  while (displayCustName.length > 5 && ctx.measureText(displayCustName).width > maxCustNameW) {
+    displayCustName = displayCustName.slice(0, -1);
+  }
+  if (displayCustName.length < custName.length) displayCustName += '...';
+  ctx.fillText(displayCustName, custAvatarX + custAvatarSize + 20, custAvatarY + 36);
+
+  // Customer Mobile Number
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '500 20px "Segoe UI", Roboto, monospace';
+  const rawCustPhone = (customer.phone || '').replace(/\D/g, '');
+  let formattedCustPhone = '';
+  if (rawCustPhone.length === 10) {
+    formattedCustPhone = `+91 ${rawCustPhone.slice(0, 5)} ${rawCustPhone.slice(5)}`;
+  } else if (rawCustPhone.length === 12 && rawCustPhone.startsWith('91')) {
+    formattedCustPhone = `+91 ${rawCustPhone.slice(2, 7)} ${rawCustPhone.slice(7)}`;
+  } else if (customer.phone) {
+    formattedCustPhone = customer.phone.trim();
+  }
+  const custPhoneStr = formattedCustPhone ? `Customer Mobile: ${formattedCustPhone}` : 'Customer Account';
+  ctx.fillText(custPhoneStr, custAvatarX + custAvatarSize + 20, custAvatarY + 64);
+
+  // -------------------------------------------------------------
+  // 3. BALANCE SUMMARY: TOTAL UDHAR, TOTAL JAMA, CURRENT BAAKI
+  // -------------------------------------------------------------
+  const summaryY = custCardY + custCardH + 20;
+  const boxGap = 16;
+  const boxW = Math.floor((contentWidth - boxGap * 2) / 3);
+
+  // Box 1: Total Udhar
+  const b1X = cardPadding;
+  ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+  drawRoundedRect(ctx, b1X, summaryY, boxW, summaryH, 18);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  ctx.fillStyle = isDue ? '#FCA5A5' : '#6EE7B7';
-  ctx.font = 'bold 22px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(isDue ? 'OUTSTANDING PENDING BALANCE (उधार बाक़ी)' : 'ACCOUNT STATUS (खाता स्थिति)', 80, balanceY + 45);
+  ctx.fillStyle = '#FCA5A5';
+  ctx.font = 'bold 16px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('TOTAL UDHAR (कुल उधार)', b1X + 20, summaryY + 38);
 
-  ctx.fillStyle = isDue ? '#EF4444' : '#10B981';
-  ctx.font = '900 56px "Segoe UI", Roboto, sans-serif';
-  const balanceText = isDue ? `₹ ${customer.totalDue.toLocaleString('en-IN')}` : '₹ 0  (ALL CLEARED)';
-  ctx.fillText(balanceText, 80, balanceY + 110);
+  ctx.fillStyle = '#EF4444';
+  ctx.font = '900 36px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(`₹${totalUdhar.toLocaleString('en-IN')}`, b1X + 20, summaryY + 95);
 
-  // 4. Transaction History Table
-  const tableY = 565;
+  // Box 2: Total Jama
+  const b2X = b1X + boxW + boxGap;
+  ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+  drawRoundedRect(ctx, b2X, summaryY, boxW, summaryH, 18);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = '#6EE7B7';
+  ctx.font = 'bold 16px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('TOTAL JAMA (कुल जमा)', b2X + 20, summaryY + 38);
+
+  ctx.fillStyle = '#10B981';
+  ctx.font = '900 36px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(`₹${totalJama.toLocaleString('en-IN')}`, b2X + 20, summaryY + 95);
+
+  // Box 3: Current Baaki
+  const b3X = b2X + boxW + boxGap;
+  const isDue = currentBaaki > 0;
+  ctx.fillStyle = isDue ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)';
+  drawRoundedRect(ctx, b3X, summaryY, boxW, summaryH, 18);
+  ctx.fill();
+  ctx.strokeStyle = isDue ? 'rgba(245, 158, 11, 0.5)' : 'rgba(16, 185, 129, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = isDue ? '#FDE68A' : '#A7F3D0';
+  ctx.font = 'bold 16px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(isDue ? 'CURRENT BAAKI (बाक़ी)' : 'ACCOUNT STATUS', b3X + 20, summaryY + 38);
+
+  ctx.fillStyle = isDue ? '#F59E0B' : '#10B981';
+  ctx.font = '900 36px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(isDue ? `₹${currentBaaki.toLocaleString('en-IN')}` : '₹0 (CLEARED)', b3X + 20, summaryY + 95);
+
+  // -------------------------------------------------------------
+  // 4. TRANSACTION HISTORY TABLE
+  // -------------------------------------------------------------
+  const txSectionY = summaryY + summaryH + 24;
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 26px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('RECENT TRANSACTION HISTORY', 48, tableY);
+  ctx.font = 'bold 24px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('RECENT TRANSACTIONS', cardPadding, txSectionY + 24);
 
-  // Table Header
-  const thY = tableY + 20;
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '500 18px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText(`(${allTxs.length} Total Records)`, cardPadding + 280, txSectionY + 24);
+
+  // Table Column Headers
+  const thY = txSectionY + 44;
+  const thH = 46;
   ctx.fillStyle = '#1E293B';
-  drawRoundedRect(ctx, 48, thY, width - 96, 50, 10);
+  drawRoundedRect(ctx, cardPadding, thY, contentWidth, thH, 10);
   ctx.fill();
 
   ctx.fillStyle = '#94A3B8';
-  ctx.font = 'bold 18px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('DATE', 75, thY + 32);
-  ctx.fillText('NOTE / DETAILS', 250, thY + 32);
-  ctx.fillText('TYPE', 650, thY + 32);
-  ctx.fillText('AMOUNT', width - 200, thY + 32);
+  ctx.font = 'bold 16px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('DATE', cardPadding + 24, thY + 30);
+  ctx.fillText('NOTE / DETAILS', cardPadding + 200, thY + 30);
+  ctx.fillText('TYPE', cardPadding + 610, thY + 30);
+  ctx.fillText('AMOUNT', cardPadding + contentWidth - 140, thY + 30);
 
-  // Transaction Rows (up to 5 recent)
-  const recentTxs = (customer.transactions || []).slice(0, 5);
-  let currentY = thY + 65;
+  let curTxY = thY + thH + 8;
+  const rowH = 58;
 
   if (recentTxs.length === 0) {
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.4)';
+    drawRoundedRect(ctx, cardPadding, curTxY, contentWidth, 64, 10);
+    ctx.fill();
+
     ctx.fillStyle = '#64748B';
-    ctx.font = 'italic 22px "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('No prior transactions recorded on ledger.', 75, currentY + 35);
-    currentY += 60;
+    ctx.font = 'italic 18px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('खाते में कोई पिछला लेन-देन नहीं है (No prior transactions on ledger)', cardPadding + 24, curTxY + 38);
+    curTxY += 72;
   } else {
     recentTxs.forEach((tx, idx) => {
-      ctx.fillStyle = idx % 2 === 0 ? 'rgba(30, 41, 59, 0.4)' : 'rgba(15, 23, 42, 0.4)';
-      drawRoundedRect(ctx, 48, currentY - 15, width - 96, 56, 8);
+      ctx.fillStyle = idx % 2 === 0 ? 'rgba(30, 41, 59, 0.5)' : 'rgba(15, 23, 42, 0.5)';
+      drawRoundedRect(ctx, cardPadding, curTxY, contentWidth, rowH, 8);
       ctx.fill();
 
       // Date
       ctx.fillStyle = '#E2E8F0';
-      ctx.font = '500 20px "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(tx.date, 75, currentY + 20);
+      ctx.font = '500 18px "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(tx.date, cardPadding + 24, curTxY + 36);
 
       // Note
-      const noteStr = (tx.note || tx.billNumber || 'Regular entry').slice(0, 32);
-      ctx.fillText(noteStr, 250, currentY + 20);
+      const noteStr = (tx.note || (tx.billNumber ? `Bill #${tx.billNumber}` : (tx.type === 'give' ? 'Credit' : 'Payment'))).slice(0, 34);
+      ctx.fillText(noteStr, cardPadding + 200, curTxY + 36);
 
-      // Type Badge
-      const isGive = tx.type === 'give';
+      // Type
+      const isGive = tx.type === 'give' || (tx as any).type === 'UDHAAR' || (tx as any).type === 'GIVE_UDHAR';
       ctx.fillStyle = isGive ? '#EF4444' : '#10B981';
-      ctx.font = 'bold 20px "Segoe UI", Roboto, sans-serif';
-      ctx.fillText(isGive ? 'Udhar (उधार)' : 'Jama (जमा)', 650, currentY + 20);
+      ctx.font = 'bold 18px "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(isGive ? '🔴 Udhar' : '🟢 Jama', cardPadding + 610, curTxY + 36);
 
       // Amount
       ctx.fillStyle = isGive ? '#F87171' : '#34D399';
-      ctx.font = 'bold 22px "Segoe UI", Roboto, monospace';
-      ctx.fillText(`${isGive ? '-' : '+'} ₹${tx.amount.toLocaleString('en-IN')}`, width - 200, currentY + 20);
+      ctx.font = 'bold 20px "Segoe UI", Roboto, monospace';
+      const amtStr = `${isGive ? '-' : '+'} ₹${Number(tx.amount || 0).toLocaleString('en-IN')}`;
+      ctx.fillText(amtStr, cardPadding + contentWidth - 140, curTxY + 36);
 
-      currentY += 65;
+      curTxY += rowH + 6;
     });
-  }
 
-  // 5. Payment & Settlement Strip (UPI QR)
-  const upiBoxY = Math.max(currentY + 20, 950);
-  ctx.fillStyle = '#131B2E';
-  drawRoundedRect(ctx, 48, upiBoxY, width - 96, 260, 20);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Draw QR code Box & Finder Patterns
-  const qrX = 80;
-  const qrY = upiBoxY + 30;
-  const qrSize = 200;
-
-  ctx.fillStyle = '#FFFFFF';
-  drawRoundedRect(ctx, qrX, qrY, qrSize, qrSize, 16);
-  ctx.fill();
-
-  // QR Finder Top-Left
-  ctx.fillStyle = '#0F172A';
-  drawRoundedRect(ctx, qrX + 15, qrY + 15, 50, 50, 6);
-  ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  drawRoundedRect(ctx, qrX + 23, qrY + 23, 34, 34, 4);
-  ctx.fill();
-  ctx.fillStyle = '#0F172A';
-  drawRoundedRect(ctx, qrX + 31, qrY + 31, 18, 18, 2);
-  ctx.fill();
-
-  // QR Finder Top-Right
-  ctx.fillStyle = '#0F172A';
-  drawRoundedRect(ctx, qrX + qrSize - 65, qrY + 15, 50, 50, 6);
-  ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  drawRoundedRect(ctx, qrX + qrSize - 57, qrY + 23, 34, 34, 4);
-  ctx.fill();
-  ctx.fillStyle = '#0F172A';
-  drawRoundedRect(ctx, qrX + qrSize - 49, qrY + 31, 18, 18, 2);
-  ctx.fill();
-
-  // QR Finder Bottom-Left
-  ctx.fillStyle = '#0F172A';
-  drawRoundedRect(ctx, qrX + 15, qrY + qrSize - 65, 50, 50, 6);
-  ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  drawRoundedRect(ctx, qrX + 23, qrY + qrSize - 57, 34, 34, 4);
-  ctx.fill();
-  ctx.fillStyle = '#0F172A';
-  drawRoundedRect(ctx, qrX + 31, qrY + qrSize - 49, 18, 18, 2);
-  ctx.fill();
-
-  // QR Random data modules
-  ctx.fillStyle = '#0F172A';
-  for (let r = 0; r < 7; r++) {
-    for (let c = 0; c < 7; c++) {
-      if ((r + c) % 2 === 0 && (r > 2 || c > 2)) {
-        ctx.fillRect(qrX + 80 + c * 14, qrY + 20 + r * 14, 10, 10);
-      }
+    if (hasMoreTxs) {
+      ctx.fillStyle = '#64748B';
+      ctx.font = '500 16px "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(`+ ${allTxs.length - recentTxs.length} more transactions on record`, cardPadding + 24, curTxY + 22);
+      curTxY += 34;
     }
   }
 
-  // UPI Info on right of QR
-  const upiTextX = qrX + qrSize + 40;
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 30px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('Pay via UPI (PhonePe / GPay / Paytm)', upiTextX, upiBoxY + 80);
+  // -------------------------------------------------------------
+  // 5. PAYMENT / UPI SECTION (Only rendered if shop has UPI ID configured)
+  // -------------------------------------------------------------
+  if (hasUpi) {
+    const upiBoxY = curTxY + 16;
+    const upiBoxH = 250;
+    ctx.fillStyle = '#131B2E';
+    drawRoundedRect(ctx, cardPadding, upiBoxY, contentWidth, upiBoxH, 20);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
-  ctx.fillStyle = '#60A5FA';
-  ctx.font = 'bold 28px "Segoe UI", Roboto, monospace';
-  if (business?.upiId) {
-    ctx.fillText(`UPI ID: ${business.upiId}`, upiTextX, upiBoxY + 130);
+    // Draw scannable UPI QR Code on Canvas
+    const qrX = cardPadding + 28;
+    const qrY = upiBoxY + (upiBoxH - 180) / 2;
+    const qrSize = 180;
+
+    let qrImage: HTMLImageElement | null = null;
+    try {
+      const upiLink = `upi://pay?pa=${encodeURIComponent(shopUpiId)}&pn=${encodeURIComponent(shopName)}&am=${currentBaaki}&cu=INR`;
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}`;
+      qrImage = await loadSafeImage(qrApiUrl, 2000);
+    } catch {
+      qrImage = null;
+    }
+
+    if (qrImage) {
+      ctx.fillStyle = '#FFFFFF';
+      drawRoundedRect(ctx, qrX, qrY, qrSize, qrSize, 14);
+      ctx.fill();
+      ctx.drawImage(qrImage, qrX + 8, qrY + 8, qrSize - 16, qrSize - 16);
+    } else {
+      drawUpiQrCode(ctx, qrX, qrY, qrSize);
+    }
+
+    // UPI Details on Right
+    const upiTextX = qrX + qrSize + 36;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 26px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('⚡ PAY NOW VIA UPI', upiTextX, upiBoxY + 54);
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '500 18px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('PhonePe  •  Google Pay  •  Paytm  •  BHIM  •  Cred', upiTextX, upiBoxY + 86);
+
+    // UPI ID Box
+    const upiBadgeW = 440;
+    const upiBadgeH = 46;
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+    drawRoundedRect(ctx, upiTextX, upiBoxY + 104, upiBadgeW, upiBadgeH, 10);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#60A5FA';
+    ctx.font = 'bold 22px "Segoe UI", Roboto, monospace';
+    ctx.fillText(`UPI ID: ${shopUpiId}`, upiTextX + 16, upiBoxY + 135);
+
+    // Balance status note
+    ctx.fillStyle = isDue ? '#FCD34D' : '#34D399';
+    ctx.font = 'bold 18px "Segoe UI", Roboto, sans-serif';
+    const noteText = isDue
+      ? `Amount to Pay: ₹${currentBaaki.toLocaleString('en-IN')}`
+      : 'Account Status: Fully Settled';
+    ctx.fillText(noteText, upiTextX, upiBoxY + 180);
+
+    ctx.fillStyle = '#64748B';
+    ctx.font = '500 16px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('Scan QR code or use the UPI ID above to settle directly.', upiTextX, upiBoxY + 212);
   }
 
-  ctx.fillStyle = '#94A3B8';
-  ctx.font = '500 22px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('Scan QR code or use UPI ID for direct settlement.', upiTextX, upiBoxY + 180);
-
-  // 6. BrandX Footer Stamp
-  const footerY = height - 70;
+  // -------------------------------------------------------------
+  // 6. BRANDX SUBTLE FOOTER
+  // -------------------------------------------------------------
+  const footerY = height - 45;
   ctx.fillStyle = '#64748B';
-  ctx.font = '500 20px "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('Generated & Verified by BRANDX Digital Bahi-Khata • 100% Secure', 48, footerY);
+  ctx.font = '500 18px "Segoe UI", Roboto, sans-serif';
+  ctx.fillText('🔒 Generated via BrandX Digital Khata • Verified & 100% Secure', cardPadding + 20, footerY);
 
   const dataUrl = canvas.toDataURL('image/png');
   const blob = dataUrlToBlob(dataUrl);
@@ -595,7 +897,7 @@ export async function dataUrlToPngBlob(dataUrl: string): Promise<Blob> {
 export interface PosterShareResult {
   success: boolean;
   message: string;
-  method?: 'native' | 'web-share' | 'clipboard-copy' | 'download-only';
+  method?: 'native' | 'web-share' | 'clipboard-copy' | 'download-only' | 'text-fallback';
   caption?: string;
   dataUrl?: string;
 }
@@ -807,25 +1109,96 @@ export async function shareDailyPosterToWhatsApp(
 }
 
 /**
+ * Direct text-based WhatsApp statement share fallback.
+ * Used when canvas image generation or native file sharing encounters an unexpected error.
+ */
+export function shareKhataTextToWhatsApp(
+  customer: KhataCustomer,
+  business?: BusinessProfile,
+  customCaption?: string
+): PosterShareResult {
+  const rawShopName = business?.name?.trim() || '';
+  const isBrandXShopName = /^brandx(\s+store)?$/i.test(rawShopName);
+  const shopName = (!rawShopName || isBrandXShopName) ? 'Vyapar Khata' : rawShopName;
+  const isDue = (customer.totalDue || 0) > 0;
+  const cleanPhone = (customer.phone || '').replace(/\D/g, '');
+
+  const caption = customCaption || (
+    `🙏 *Namaste ${customer.name} ji,*\n\n` +
+    `Aapke khate ka hisab from *${shopName}*:\n` +
+    (isDue
+      ? `📌 *Pending Balance:* ₹${customer.totalDue.toLocaleString('en-IN')}\n` +
+        (business?.upiId ? `💳 *UPI ID for Payment:* ${business.upiId}\n` : '') +
+        (business?.upiId ? `🔗 *Pay Link:* upi://pay?pa=${encodeURIComponent(business.upiId)}&pn=${encodeURIComponent(shopName)}&am=${customer.totalDue}&cu=INR\n\n` : '\n')
+      : `✅ *Account Status:* Sabhi hisab barabar (₹0 Balance)\n\n`) +
+    (business?.phone ? `📞 *Sampark:* +91 ${business.phone}\n` : '') +
+    `Dhanyawaad! ✨\n` +
+    `_Sent via BrandX Digital Khata_`
+  );
+
+  // Copy text to clipboard if available
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(caption).catch(() => {});
+    }
+  } catch {}
+
+  // Open WhatsApp Web or App
+  const phoneParam = cleanPhone ? `phone=91${cleanPhone}&` : '';
+  const waUrl = `https://api.whatsapp.com/send?${phoneParam}text=${encodeURIComponent(caption)}`;
+
+  if (typeof window !== 'undefined' && window.open) {
+    window.open(waUrl, '_blank');
+  }
+
+  return {
+    success: true,
+    message: 'Khata statement text WhatsApp me share kiya gaya! 💬',
+    method: 'text-fallback',
+    caption,
+  };
+}
+
+/**
  * Shares Customer Khata Statement directly to WhatsApp (with visual statement Image file + caption)
+ * If canvas generation or file sharing fails, gracefully falls back to text WhatsApp share.
  */
 export async function shareKhataStatementToWhatsApp(
   customer: KhataCustomer,
-  business?: BusinessProfile
+  business?: BusinessProfile,
+  customCaption?: string
 ): Promise<PosterShareResult> {
-  const caption =
+  const rawShopName = business?.name?.trim() || '';
+  const isBrandXShopName = /^brandx(\s+store)?$/i.test(rawShopName);
+  const shopName = (!rawShopName || isBrandXShopName) ? 'Vyapar Khata' : rawShopName;
+  const isDue = (customer.totalDue || 0) > 0;
+
+  const caption = customCaption || (
     `🙏 *Namaste ${customer.name} ji,*\n\n` +
-    `Aapke khate ka latest statement attached hai from *${business?.name || 'Shop'}*.\n\n` +
-    (customer.totalDue > 0
+    `Aapke khate ka latest statement attached hai from *${shopName}*.\n\n` +
+    (isDue
       ? `📌 *Pending Balance:* ₹${customer.totalDue.toLocaleString('en-IN')}\n` +
-        (business?.upiId ? `💳 *UPI ID for Payment:* ${business.upiId}\n\n` : '\n')
+        (business?.upiId ? `💳 *UPI ID for Payment:* ${business.upiId}\n` : '') +
+        (business?.upiId ? `🔗 *Pay Link:* upi://pay?pa=${encodeURIComponent(business.upiId)}&pn=${encodeURIComponent(shopName)}&am=${customer.totalDue}&cu=INR\n\n` : '\n')
       : `✅ *Account Status:* Sabhi hisab barabar (₹0 Balance)\n\n`) +
     `Kripya attached statement check kar lein. Dhanyawaad! ✨\n` +
-    `_Sent via BRANDX Digital Khata_`;
+    `_Sent via BrandX Digital Khata_`
+  );
 
-  const { dataUrl, blob } = await generateKhataStatementBlob(customer, business);
-  const title = `Khata-${customer.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  try {
+    const { dataUrl, blob } = await generateKhataStatementBlob(customer, business);
+    const title = `Khata-${(customer.name || 'Customer').replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-  return shareImageToWhatsApp(dataUrl, caption, title, blob, customer.phone);
+    const shareRes = await shareImageToWhatsApp(dataUrl, caption, title, blob, customer.phone);
+    if (shareRes.success) {
+      return shareRes;
+    }
+    // If native or web sharing failed with success=false, fallback to text WhatsApp share
+    console.warn('[KhataShare] Image sharing returned failure, falling back to text WhatsApp share:', shareRes.message);
+    return shareKhataTextToWhatsApp(customer, business, caption);
+  } catch (err: any) {
+    console.warn('[KhataShare] Statement image generation failed, falling back to text WhatsApp share:', err);
+    return shareKhataTextToWhatsApp(customer, business, caption);
+  }
 }
 
