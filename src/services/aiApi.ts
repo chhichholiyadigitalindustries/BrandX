@@ -107,6 +107,13 @@ class AIApiClient {
     }
   }
 
+  private handleResponseError(res: Response, json: any, defaultMessage: string): never {
+    if (res.status === 503) {
+      throw new Error(json?.message || 'AI service is temporarily busy. Please try again in a moment.');
+    }
+    throw new Error(json?.message || json?.error?.message || defaultMessage);
+  }
+
   /**
    * 1. Multi-language Chat endpoint
    */
@@ -125,7 +132,7 @@ class AIApiClient {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.message || json?.error?.message || 'AI chat generation failed');
+      this.handleResponseError(res, json, 'AI chat generation failed');
     }
 
     return json.data;
@@ -151,7 +158,7 @@ class AIApiClient {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.message || json?.error?.message || 'Review reply generation failed');
+      this.handleResponseError(res, json, 'Review reply generation failed');
     }
 
     return json.data;
@@ -181,7 +188,7 @@ class AIApiClient {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.message || json?.error?.message || 'WhatsApp campaign generation failed');
+      this.handleResponseError(res, json, 'WhatsApp campaign generation failed');
     }
 
     return json.data;
@@ -206,7 +213,7 @@ class AIApiClient {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.message || json?.error?.message || 'Caption generation failed');
+      this.handleResponseError(res, json, 'Caption generation failed');
     }
 
     return json.data;
@@ -229,7 +236,7 @@ class AIApiClient {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.message || json?.error?.message || 'Business insights generation failed');
+      this.handleResponseError(res, json, 'Business insights generation failed');
     }
 
     return json.data;
@@ -248,7 +255,7 @@ class AIApiClient {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.message || json?.error?.message || 'Failed to fetch AI quota');
+      this.handleResponseError(res, json, 'Failed to fetch AI quota');
     }
 
     return json.data;
@@ -268,7 +275,7 @@ class AIApiClient {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.message || json?.error?.message || 'AI generation failed');
+      this.handleResponseError(res, json, 'AI generation failed');
     }
 
     return json.data;

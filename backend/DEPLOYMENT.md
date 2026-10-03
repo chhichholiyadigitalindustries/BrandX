@@ -46,6 +46,10 @@ Configure these variables in your hosting provider's dashboard (e.g., Render Env
 ### AI Service (Google Gemini)
 - `GEMINI_API_KEY`: Server-side API key for Google GenAI SDK. Isolated from frontend clients.
 - `GEMINI_MODEL`: AI model identifier (default: `gemini-3.8-flash`).
+- `GEMINI_FALLBACK_MODEL`: Controlled fallback model on 503/transient availability spikes (default: `gemini-3.7-flash`).
+- `GEMINI_MAX_RETRIES`: Maximum retries for primary model with exponential backoff (default: `2`).
+- `GEMINI_BASE_DELAY_MS`: Base delay for exponential backoff (default: `1000`).
+- `GEMINI_MAX_DELAY_MS`: Maximum delay cap for exponential backoff (default: `8000`).
 - `AI_FREE_DAILY_LIMIT`: Daily prompt ceiling for Free tier users (default: `20`).
 - `AI_PRO_DAILY_LIMIT`: Daily prompt ceiling for Pro tier users (default: `100`).
 

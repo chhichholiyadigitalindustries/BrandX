@@ -11,11 +11,14 @@ export interface GeminiGenerateOptions {
 export class GeminiProvider {
   private apiKey: string;
   private model: string;
+  private fallbackModel: string | null;
 
   constructor() {
     this.apiKey = config.gemini.apiKey;
     const raw = config.gemini.model;
     this.model = (!raw || raw.includes('2.5') || raw.includes('1.5') || raw === 'gemini-pro') ? 'gemini-3.8-flash' : raw;
+    this.fallbackModel = config.gemini.fallbackModel;
+    if (this.fallbackModel === this.model) this.fallbackModel = null;
   }
 
   public isConfigured(): boolean {

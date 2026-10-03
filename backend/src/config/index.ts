@@ -39,6 +39,19 @@ export const config = {
       }
       return raw;
     })(),
+    fallbackModel: (() => {
+      const raw = process.env.GEMINI_FALLBACK_MODEL?.trim();
+      if (raw && (raw.toLowerCase() === 'none' || raw.toLowerCase() === 'false' || raw.toLowerCase() === 'disabled')) {
+        return null;
+      }
+      if (!raw || raw === 'gemini-2.5-flash' || raw === 'gemini-2.5' || raw === 'gemini-1.5-flash' || raw === 'gemini-pro' || raw.startsWith('gemini-2.5')) {
+        return 'gemini-3.7-flash';
+      }
+      return raw;
+    })(),
+    maxRetries: parseInt(process.env.GEMINI_MAX_RETRIES || '2', 10),
+    baseDelayMs: parseInt(process.env.GEMINI_BASE_DELAY_MS || '1000', 10),
+    maxDelayMs: parseInt(process.env.GEMINI_MAX_DELAY_MS || '8000', 10),
     maxOutputTokens: parseInt(process.env.GEMINI_MAX_OUTPUT_TOKENS || '2048', 10),
     timeoutMs: parseInt(process.env.GEMINI_TIMEOUT_MS || '30000', 10),
     freeDailyLimit: parseInt(process.env.AI_FREE_DAILY_LIMIT || '20', 10),
