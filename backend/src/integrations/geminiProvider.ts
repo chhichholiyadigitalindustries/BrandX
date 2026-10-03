@@ -14,7 +14,8 @@ export class GeminiProvider {
 
   constructor() {
     this.apiKey = config.gemini.apiKey;
-    this.model = config.gemini.model;
+    const raw = config.gemini.model;
+    this.model = (!raw || raw.includes('2.5') || raw.includes('1.5') || raw === 'gemini-pro') ? 'gemini-3.8-flash' : raw;
   }
 
   public isConfigured(): boolean {

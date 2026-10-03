@@ -45,7 +45,7 @@ Configure these variables in your hosting provider's dashboard (e.g., Render Env
 
 ### AI Service (Google Gemini)
 - `GEMINI_API_KEY`: Server-side API key for Google GenAI SDK. Isolated from frontend clients.
-- `GEMINI_MODEL`: AI model identifier (default: `gemini-2.5-flash`).
+- `GEMINI_MODEL`: AI model identifier (default: `gemini-3.8-flash`).
 - `AI_FREE_DAILY_LIMIT`: Daily prompt ceiling for Free tier users (default: `20`).
 - `AI_PRO_DAILY_LIMIT`: Daily prompt ceiling for Pro tier users (default: `100`).
 

@@ -32,7 +32,13 @@ export const config = {
 
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    model: (() => {
+      const raw = process.env.GEMINI_MODEL?.trim();
+      if (!raw || raw === 'gemini-2.5-flash' || raw === 'gemini-2.5' || raw === 'gemini-1.5-flash' || raw === 'gemini-pro' || raw.startsWith('gemini-2.5')) {
+        return 'gemini-3.8-flash';
+      }
+      return raw;
+    })(),
     maxOutputTokens: parseInt(process.env.GEMINI_MAX_OUTPUT_TOKENS || '2048', 10),
     timeoutMs: parseInt(process.env.GEMINI_TIMEOUT_MS || '30000', 10),
     freeDailyLimit: parseInt(process.env.AI_FREE_DAILY_LIMIT || '20', 10),

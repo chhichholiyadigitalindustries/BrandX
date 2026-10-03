@@ -40,7 +40,7 @@ const DEFAULT_SETTINGS: AdminSettings = {
     voiceToBill: true,
   },
   aiConfig: {
-    geminiModel: 'gemini-2.5-flash',
+    geminiModel: 'gemini-3.8-flash',
     maxDailyFreePrompts: 15,
     voiceAudioEnabled: true,
   },

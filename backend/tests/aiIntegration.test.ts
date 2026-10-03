@@ -36,6 +36,8 @@ import {
   buildBusinessInsightsPrompt,
   BRANDX_SYSTEM_INSTRUCTION,
 } from '../src/ai/prompts/index.js';
+import { config } from '../src/config/index.js';
+import { geminiService } from '../src/services/gemini.service.js';
 
 export async function runAiIntegrationTests() {
   console.log('\n========================================================');
@@ -534,7 +536,46 @@ export async function runAiIntegrationTests() {
   assert.strictEqual(checkIsConfigured('AIzaSyD-RealProductionKey123'), true, 'Valid key must be configured');
   console.log('✅ 12. Unconfigured / placeholder API key detection verified.');
 
+  // ------------------------------------------------------------
+  // 13. Production Gemini Model Verification (gemini-3.8-flash)
+  // ------------------------------------------------------------
+  console.log('\n--- 13. Testing Production Gemini Model Verification ---');
+
+  // Verify active model in geminiService is gemini-3.8-flash
+  const activeModel = geminiService.getModelName();
+  assert.strictEqual(
+    activeModel,
+    'gemini-3.8-flash',
+    `Expected active model in geminiService to be "gemini-3.8-flash", but got "${activeModel}"`
+  );
+
+  // Verify config model default is gemini-3.8-flash
+  assert.strictEqual(
+    config.gemini.model,
+    'gemini-3.8-flash',
+    `Expected config.gemini.model to be "gemini-3.8-flash", but got "${config.gemini.model}"`
+  );
+
+  // Verify legacy model normalization handles all deprecated variations
+  assert.strictEqual(geminiService.normalizeModel('gemini-2.5-flash'), 'gemini-3.8-flash');
+  assert.strictEqual(geminiService.normalizeModel('gemini-2.5'), 'gemini-3.8-flash');
+  assert.strictEqual(geminiService.normalizeModel('gemini-1.5-flash'), 'gemini-3.8-flash');
+  assert.strictEqual(geminiService.normalizeModel('gemini-pro'), 'gemini-3.8-flash');
+  assert.strictEqual(geminiService.normalizeModel(''), 'gemini-3.8-flash');
+  assert.strictEqual(geminiService.normalizeModel(undefined), 'gemini-3.8-flash');
+  assert.strictEqual(geminiService.normalizeModel('custom-model-v1'), 'custom-model-v1');
+
+  console.log('✅ 13. Production model verified as gemini-3.8-flash with legacy migration support.');
+
   console.log('\n========================================================');
   console.log('🎉 ALL AI COPILOT & GEMINI INTEGRATION TESTS PASSED!');
   console.log('========================================================\n');
+}
+
+// Auto-run if executed directly via tsx / node
+if (process.argv[1]?.includes('aiIntegration.test')) {
+  runAiIntegrationTests().catch((err) => {
+    console.error('AI Integration tests failed:', err);
+    process.exit(1);
+  });
 }

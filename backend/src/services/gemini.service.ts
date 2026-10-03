@@ -35,7 +35,7 @@ export class GeminiService {
   private defaultMaxTokens: number;
 
   constructor() {
-    this.model = config.gemini.model || 'gemini-2.5-flash';
+    this.model = this.normalizeModel(config.gemini.model);
     this.defaultTimeoutMs = config.gemini.timeoutMs || 30000;
     this.defaultMaxTokens = config.gemini.maxOutputTokens || 2048;
 
@@ -46,6 +46,24 @@ export class GeminiService {
         logger.error('Failed to initialize GoogleGenAI client:', err?.message);
       }
     }
+  }
+
+  /**
+   * Normalizes legacy or unconfigured model names to production-compatible gemini-3.8-flash
+   */
+  public normalizeModel(modelName?: string): string {
+    const trimmed = modelName?.trim();
+    if (
+      !trimmed ||
+      trimmed === 'gemini-2.5-flash' ||
+      trimmed === 'gemini-2.5' ||
+      trimmed === 'gemini-1.5-flash' ||
+      trimmed === 'gemini-pro' ||
+      trimmed.startsWith('gemini-2.5')
+    ) {
+      return 'gemini-3.8-flash';
+    }
+    return trimmed;
   }
 
   /**
