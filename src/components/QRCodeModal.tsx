@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { resolveShopName } from '../utils/posterShare';
 
 interface QRCodeModalProps {
   isOpen: boolean;
@@ -53,7 +54,8 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
       ctx.fillStyle = '#FFFFFF';
       ctx.font = 'bold 28px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(shopName || 'BrandX Store', 300, 75);
+      const displayShopName = resolveShopName({ name: shopName } as any);
+      ctx.fillText(displayShopName, 300, 75);
 
       // Subtitle
       ctx.fillStyle = '#94A3B8';

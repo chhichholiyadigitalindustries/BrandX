@@ -78,7 +78,7 @@ export class CardRepository {
   async upsert(businessId: string, data: any): Promise<DigitalCard> {
     const existing = await this.findByBusinessId(businessId);
 
-    const name = data.fullName || data.name || 'BrandX Merchant';
+    const name = data.fullName || data.name || 'Merchant';
     const company = data.companyName || data.company || 'Business';
     const phone = data.phone || data.mobile || '';
 

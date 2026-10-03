@@ -227,6 +227,19 @@ class BusinessApiService {
       console.error('[BrandX Business API] Error syncing local business profile:', e);
     }
   }
+
+  /**
+   * Retrieve cached local business profile from localStorage
+   */
+  getLocalProfile(): BusinessProfile | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem(BIZ_STORAGE_KEY) || localStorage.getItem('brandkit_business_profile');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 export const businessApi = new BusinessApiService();

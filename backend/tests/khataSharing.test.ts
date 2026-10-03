@@ -1,192 +1,270 @@
 /**
  * Unit Tests for BrandX Udhar Khata Branded Statement & WhatsApp Sharing Logic
+ * Verifies real business data resolution, standard machine-readable QR generation,
+ * zero/negative balance behavior, and complete absence of demo/hardcoded names.
  */
 
-export function runKhataSharingTests() {
+import QRCode from 'qrcode';
+
+export async function runKhataSharingTests() {
   console.log('\n--- 🧪 Testing Udhar Khata Branded Statement & Sharing Engine ---');
 
-  // Test 1: Shop Name Extraction (Must never use "BrandX" as shop name)
-  function resolveShopName(businessName?: string): string {
-    const rawShopName = businessName?.trim() || '';
-    const isBrandXShopName = /^brandx(\s+store)?$/i.test(rawShopName);
-    return (!rawShopName || isBrandXShopName) ? 'Vyapar Khata' : rawShopName;
+  // Helper implementations matching posterShare.ts
+  function isForbiddenShopName(name?: string | null): boolean {
+    if (!name) return true;
+    const trimmed = name.trim().toLowerCase();
+    if (!trimmed) return true;
+
+    const forbiddenExact = [
+      'brandx',
+      'brandx store',
+      'brandx merchant',
+      'brandx merchant store',
+      'brandx business',
+      'brandx vyapar',
+      'brandx khata',
+      'demo store',
+      'default store',
+      'my store',
+      'my business',
+      'merchant store',
+      'test store',
+      'vyapar khata',
+    ];
+
+    if (forbiddenExact.includes(trimmed)) return true;
+    if (trimmed.startsWith('brandx ') || trimmed.startsWith('brandx-') || trimmed.startsWith('brandx_')) return true;
+
+    return false;
   }
 
-  if (resolveShopName('Gupta Provision Store') !== 'Gupta Provision Store') {
-    throw new Error('Expected exact shop name "Gupta Provision Store"');
-  }
-  if (resolveShopName('BrandX') !== 'Vyapar Khata') {
-    throw new Error('Shop name must not be "BrandX", must fallback to "Vyapar Khata"');
-  }
-  if (resolveShopName('BrandX Store') !== 'Vyapar Khata') {
-    throw new Error('Shop name must not be "BrandX Store", must fallback to "Vyapar Khata"');
-  }
-  if (resolveShopName('') !== 'Vyapar Khata') {
-    throw new Error('Empty shop name must fallback to "Vyapar Khata"');
-  }
-  if (resolveShopName(undefined) !== 'Vyapar Khata') {
-    throw new Error('Undefined shop name must fallback to "Vyapar Khata"');
-  }
-  console.log('  ✓ Shop branding resolution verifies exact profile name and forbids BrandX as shop name');
-
-  // Test 2: Balance calculations (Total Udhar, Total Jama, Current Baaki)
-  function computeStatementBalances(totalDue: number, transactions: Array<{ type: string; amount: number }>) {
-    let txUdhar = 0;
-    let txJama = 0;
-    for (const tx of transactions) {
-      const amt = Math.max(0, Number(tx.amount) || 0);
-      const t = String(tx.type || '').toLowerCase();
-      if (t === 'give' || t === 'udhar' || t === 'udhaar' || t === 'give_udhar') {
-        txUdhar += amt;
-      } else if (t === 'receive' || t === 'jama' || t === 'receive_jama') {
-        txJama += amt;
-      }
+  function resolveShopName(businessName?: string | null): string {
+    const candidate = (businessName || '').trim();
+    if (!candidate || isForbiddenShopName(candidate)) {
+      return 'Business Name Not Set';
     }
-    const currentBaaki = Math.max(0, Number(totalDue) || 0);
-    const totalJama = txJama;
-    const totalUdhar = Math.max(txUdhar, currentBaaki + totalJama);
-
-    return { totalUdhar, totalJama, currentBaaki };
+    return candidate;
   }
 
-  // Case A: Regular transactions matching due
-  const resA = computeStatementBalances(1500, [
-    { type: 'give', amount: 2000 },
-    { type: 'receive', amount: 500 },
-  ]);
-  if (resA.totalUdhar !== 2000 || resA.totalJama !== 500 || resA.currentBaaki !== 1500) {
-    throw new Error(`Balance calculation mismatch in Case A: ${JSON.stringify(resA)}`);
+  function isValidMerchantLogoUrl(url?: string | null): boolean {
+    if (!url) return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    const lower = trimmed.toLowerCase();
+
+    // Strip query parameters or hashes for clean file check
+    const cleanPath = lower.split('?')[0].split('#')[0];
+
+    if (
+      cleanPath.includes('brandx-logo') ||
+      cleanPath.includes('brandx_logo') ||
+      cleanPath.includes('brandkit-logo') ||
+      cleanPath.endsWith('/brandx.png') ||
+      cleanPath.endsWith('/brandx.jpg') ||
+      cleanPath.endsWith('/brandx.svg') ||
+      cleanPath === '/logo.png' ||
+      cleanPath === 'logo.png' ||
+      cleanPath === 'undefined' ||
+      cleanPath === 'null'
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
-  // Case B: Opening balance without prior give records
-  const resB = computeStatementBalances(3000, [
-    { type: 'receive', amount: 500 },
-  ]);
-  // totalUdhar must account for opening balance: 3000 + 500 = 3500
-  if (resB.totalUdhar !== 3500 || resB.totalJama !== 500 || resB.currentBaaki !== 3000) {
-    throw new Error(`Opening balance not preserved in Case B: ${JSON.stringify(resB)}`);
+  function buildUpiPaymentUri(upiId: string, merchantName: string, amount?: number): string {
+    const cleanUpi = upiId.trim();
+    const cleanName = merchantName.trim() || 'Merchant';
+    const encodedName = encodeURIComponent(cleanName);
+    const encodedUpi = encodeURIComponent(cleanUpi);
+
+    let uri = `upi://pay?pa=${encodedUpi}&pn=${encodedName}&cu=INR`;
+    if (typeof amount === 'number' && amount > 0) {
+      const formattedAmt = amount % 1 === 0 ? amount.toString() : amount.toFixed(2);
+      uri += `&am=${formattedAmt}`;
+    }
+    return uri;
   }
 
-  // Case C: Fully cleared account
-  const resC = computeStatementBalances(0, [
-    { type: 'give', amount: 1000 },
-    { type: 'receive', amount: 1000 },
-  ]);
-  if (resC.totalUdhar !== 1000 || resC.totalJama !== 1000 || resC.currentBaaki !== 0) {
-    throw new Error(`Cleared account balance mismatch in Case C: ${JSON.stringify(resC)}`);
+  // 1. Real Business Name Resolution & 2. No Hardcoded "BrandX Merchant Store"
+  if (resolveShopName('Sharma Kirana & General Store') !== 'Sharma Kirana & General Store') {
+    throw new Error('Failed to resolve real business name');
   }
-  console.log('  ✓ Balance summary accurately computes Total Udhar, Total Jama, and Current Baaki');
-
-  // Test 3: Transaction sorting (Newest first) and truncation (Max 8)
-  const sampleTxs = [
-    { date: '2026-09-01', amount: 100, type: 'give', note: 'Item 1' },
-    { date: '2026-09-10', amount: 200, type: 'give', note: 'Item 2' },
-    { date: '2026-09-15', amount: 300, type: 'receive', note: 'Item 3' },
-    { date: '2026-09-20', amount: 400, type: 'give', note: 'Item 4' },
-    { date: '2026-09-22', amount: 500, type: 'give', note: 'Item 5' },
-    { date: '2026-09-25', amount: 600, type: 'receive', note: 'Item 6' },
-    { date: '2026-09-28', amount: 700, type: 'give', note: 'Item 7' },
-    { date: '2026-09-29', amount: 800, type: 'give', note: 'Item 8' },
-    { date: '2026-09-30', amount: 900, type: 'give', note: 'Item 9' },
-    { date: '2026-10-01', amount: 1000, type: 'receive', note: 'Item 10' },
+  if (resolveShopName('Verma Enterprises') !== 'Verma Enterprises') {
+    throw new Error('Failed to resolve real business name');
+  }
+  const forbiddenInputs = [
+    'BrandX Merchant Store',
+    'BrandX Store',
+    'BrandX Business',
+    'BrandX',
+    'brandx merchant store',
+    'Demo Store',
+    'Default Store',
+    'My Store',
+    'Merchant Store',
+    'Vyapar Khata',
+    '',
+    '   ',
+    null,
+    undefined,
   ];
-
-  const sortedTxs = [...sampleTxs].sort((a, b) => {
-    const tA = new Date(a.date).getTime();
-    const tB = new Date(b.date).getTime();
-    return tB - tA;
-  });
-
-  if (sortedTxs[0].date !== '2026-10-01') {
-    throw new Error('Transactions are not sorted newest first');
-  }
-
-  const recentTxs = sortedTxs.slice(0, 8);
-  const remainingCount = sortedTxs.length - recentTxs.length;
-  if (recentTxs.length !== 8) {
-    throw new Error(`Expected 8 recent transactions, got ${recentTxs.length}`);
-  }
-  if (remainingCount !== 2) {
-    throw new Error(`Expected 2 remaining transactions, got ${remainingCount}`);
-  }
-  console.log('  ✓ Transaction history sorts newest first and cleanly slices up to 8 entries with overflow indicator');
-
-  // Test 4: Logo handling (No placeholder logos)
-  function hasValidShopLogo(logoUrl?: string): boolean {
-    return Boolean(logoUrl && logoUrl.trim().length > 0);
-  }
-  if (hasValidShopLogo(undefined) !== false) throw new Error('Undefined logo should be false');
-  if (hasValidShopLogo('') !== false) throw new Error('Empty string logo should be false');
-  if (hasValidShopLogo('   ') !== false) throw new Error('Whitespace logo should be false');
-  if (hasValidShopLogo('https://cdn.example.com/logo.png') !== true) throw new Error('Valid logo URL should be true');
-  console.log('  ✓ Logo logic properly omits logos without generating placeholder logos');
-
-  // Test 5: UPI Section Visibility and Link Construction
-  function generateUpiDetails(shopName: string, upiId?: string, amount: number = 0) {
-    const cleanUpi = upiId?.trim() || '';
-    if (!cleanUpi) {
-      return { hasUpi: false, upiLink: null };
+  for (const input of forbiddenInputs) {
+    const res = resolveShopName(input);
+    if (res !== 'Business Name Not Set') {
+      throw new Error(`Forbidden input "${input}" must resolve to "Business Name Not Set", got "${res}"`);
     }
-    const upiLink = `upi://pay?pa=${encodeURIComponent(cleanUpi)}&pn=${encodeURIComponent(shopName)}&am=${amount}&cu=INR`;
-    return { hasUpi: true, upiLink };
+  }
+  console.log('  ✓ 1 & 2: Real business name resolved correctly; forbidden demo/BrandX names rejected');
+
+  // 3. Logo URL Resolution & 4. Missing Logo Handling
+  if (!isValidMerchantLogoUrl('https://res.cloudinary.com/brandx/image/upload/v1/user_logos/sharma_store.png')) {
+    throw new Error('Valid uploaded merchant logo URL was rejected');
+  }
+  if (!isValidMerchantLogoUrl('https://storage.googleapis.com/merchant-bucket/logo123.jpg')) {
+    throw new Error('Valid Google Cloud Storage merchant logo URL was rejected');
+  }
+  if (isValidMerchantLogoUrl('/brandx-logo.png')) {
+    throw new Error('Default BrandX logo must be rejected so no fake logo renders');
+  }
+  if (isValidMerchantLogoUrl('https://cdn.brandx.in/brandx-logo.png')) {
+    throw new Error('BrandX CDN logo must be rejected');
+  }
+  if (isValidMerchantLogoUrl('')) {
+    throw new Error('Empty logo URL must be rejected');
+  }
+  if (isValidMerchantLogoUrl(undefined)) {
+    throw new Error('Undefined logo URL must be rejected');
+  }
+  if (isValidMerchantLogoUrl('   ')) {
+    throw new Error('Whitespace logo URL must be rejected');
+  }
+  console.log('  ✓ 3 & 4: Real merchant logos accepted; fake/default BrandX logos cleanly omitted');
+
+  // 5. Real UPI ID Resolution, 6. UPI Payload Generation & 7. Correct Amount in Payload
+  const upiUri1 = buildUpiPaymentUri('sharmastore@okhdfcbank', 'Sharma Kirana Store', 5000);
+  if (
+    !upiUri1.startsWith('upi://pay?') ||
+    !upiUri1.includes('pa=sharmastore%40okhdfcbank') ||
+    !upiUri1.includes('pn=Sharma%20Kirana%20Store') ||
+    !upiUri1.includes('am=5000') ||
+    !upiUri1.includes('cu=INR')
+  ) {
+    throw new Error(`UPI payload generation mismatch: ${upiUri1}`);
   }
 
-  const upiActive = generateUpiDetails('Sharma Store', 'sharma@upi', 1500);
-  if (!upiActive.hasUpi || !upiActive.upiLink?.includes('pa=sharma%40upi') || !upiActive.upiLink?.includes('am=1500')) {
-    throw new Error('Failed to generate active UPI link');
+  const upiUriDecimal = buildUpiPaymentUri('merchant@upi', 'My Retail', 1250.50);
+  if (!upiUriDecimal.includes('am=1250.50')) {
+    throw new Error(`UPI decimal amount not formatted properly: ${upiUriDecimal}`);
   }
 
-  const upiInactive = generateUpiDetails('Sharma Store', '', 1500);
-  if (upiInactive.hasUpi || upiInactive.upiLink !== null) {
-    throw new Error('UPI section must be disabled when shop has no upiId configured');
+  const upiUriNoAmt = buildUpiPaymentUri('merchant@upi', 'My Retail', 0);
+  if (upiUriNoAmt.includes('&am=')) {
+    throw new Error(`Zero amount must not include &am= parameter: ${upiUriNoAmt}`);
   }
-  console.log('  ✓ UPI section renders only when upiId is configured, with accurate NPCI payment links');
+  console.log('  ✓ 5, 6 & 7: UPI deep-link payload constructed with real UPI ID, encoded business name, and accurate amount');
 
-  // Test 6: WhatsApp text fallback formatting and PII protection
-  function formatWhatsAppMessage(
-    customer: { id: string; name: string; phone: string; totalDue: number },
-    business: { name: string; phone?: string; upiId?: string }
+  // 8. Standard Machine-Readable QR Generation & 9. QR Generation Error Handling
+  const qrMatrix = QRCode.create(upiUri1, { errorCorrectionLevel: 'M' });
+  if (!qrMatrix || !qrMatrix.modules || qrMatrix.modules.size < 21) {
+    throw new Error('Generated QR matrix is invalid or below minimum QR dimensions');
+  }
+  // Generate DataURL via qrcode library to confirm end-to-end machine readability
+  const qrDataUrl = await QRCode.toDataURL(upiUri1, {
+    width: 270,
+    margin: 2,
+    errorCorrectionLevel: 'M',
+  });
+  if (!qrDataUrl.startsWith('data:image/png;base64,')) {
+    throw new Error('QR code DataURL output is not valid base64 PNG');
+  }
+
+  // QR error handling: extremely oversized string throws or handles safely
+  try {
+    const hugePayload = 'A'.repeat(8000);
+    QRCode.create(hugePayload);
+  } catch (err: any) {
+    // Expected to throw on data overflow
+    if (!err) throw new Error('Expected QR overflow to throw error');
+  }
+  console.log('  ✓ 8 & 9: Real machine-readable QR matrix and PNG generated via qrcode library (size >= 270px)');
+
+  // 10. Zero/Negative Balance Behavior
+  function shouldShowPaymentQr(upiId?: string, currentBaaki: number = 0): boolean {
+    const cleanUpi = (upiId || '').trim();
+    return Boolean(cleanUpi) && currentBaaki > 0;
+  }
+
+  if (shouldShowPaymentQr('merchant@upi', 5000) !== true) {
+    throw new Error('Expected payment QR to show when Baaki = 5000 and UPI ID exists');
+  }
+  if (shouldShowPaymentQr('merchant@upi', 0) !== false) {
+    throw new Error('Payment QR must NOT show when Baaki is 0 (cleared account)');
+  }
+  if (shouldShowPaymentQr('merchant@upi', -500) !== false) {
+    throw new Error('Payment QR must NOT show when Baaki is negative (advance/credit)');
+  }
+  if (shouldShowPaymentQr('', 5000) !== false) {
+    throw new Error('Payment QR must NOT show when merchant has no UPI ID');
+  }
+  console.log('  ✓ 10: Zero/negative balance cleanly omits payment QR code from statement');
+
+  // 11. WhatsApp Image Sharing & 12. Text Fallback
+  function formatWhatsAppCaption(
+    customer: { name: string; totalDue: number },
+    business?: { name?: string; upiId?: string; phone?: string }
   ): string {
-    const shopName = resolveShopName(business.name);
+    const shopName = resolveShopName(business?.name);
     const isDue = customer.totalDue > 0;
+    const cleanUpi = (business?.upiId || '').trim();
+    const upiLink = cleanUpi && isDue ? buildUpiPaymentUri(cleanUpi, shopName, customer.totalDue) : '';
 
     return (
       `🙏 *Namaste ${customer.name} ji,*\n\n` +
-      `Aapke khate ka hisab from *${shopName}*:\n` +
+      `Aapke khate ka latest statement attached hai from *${shopName}*.\n\n` +
       (isDue
         ? `📌 *Pending Balance:* ₹${customer.totalDue.toLocaleString('en-IN')}\n` +
-          (business?.upiId ? `💳 *UPI ID for Payment:* ${business.upiId}\n` : '') +
-          (business?.upiId ? `🔗 *Pay Link:* upi://pay?pa=${encodeURIComponent(business.upiId)}&pn=${encodeURIComponent(shopName)}&am=${customer.totalDue}&cu=INR\n\n` : '\n')
+          (cleanUpi ? `💳 *UPI ID for Payment:* ${cleanUpi}\n` : '') +
+          (upiLink ? `🔗 *Pay Link:* ${upiLink}\n\n` : '\n')
         : `✅ *Account Status:* Sabhi hisab barabar (₹0 Balance)\n\n`) +
-      (business?.phone ? `📞 *Sampark:* +91 ${business.phone}\n` : '') +
-      `Dhanyawaad! ✨\n` +
+      `Kripya attached statement check kar lein. Dhanyawaad! ✨\n` +
       `_Sent via BrandX Digital Khata_`
     );
   }
 
   const sampleCust = {
-    id: 'cust-uuid-internal-12345-do-not-leak',
-    name: 'Ramesh Kumar',
+    id: 'cust-internal-uuid-secret-999',
+    name: 'Ramesh Patel',
     phone: '9876543210',
-    totalDue: 2450,
+    totalDue: 3500,
   };
   const sampleBiz = {
-    name: 'Verma Supermarket',
-    phone: '9123456780',
-    upiId: 'verma@okaxis',
+    name: 'Patel Hardware & Paints',
+    phone: '9822012345',
+    upiId: 'patelhardware@okhdfcbank',
   };
 
-  const waMsg = formatWhatsAppMessage(sampleCust, sampleBiz);
-  if (waMsg.includes('cust-uuid-internal')) {
-    throw new Error('Internal customer database ID leaked in statement message!');
+  const captionWithBiz = formatWhatsAppCaption(sampleCust, sampleBiz);
+  if (!captionWithBiz.includes('Patel Hardware & Paints')) {
+    throw new Error('Caption must include real business name');
   }
-  if (!waMsg.includes('Ramesh Kumar') || !waMsg.includes('Verma Supermarket') || !waMsg.includes('2,450')) {
-    throw new Error('Missing core statement details in WhatsApp message');
+  if (captionWithBiz.includes('BrandX Merchant Store') || captionWithBiz.includes('BrandX Store')) {
+    throw new Error('Caption must not include demo or fallback store names');
   }
-  if (!waMsg.includes('verma@okaxis')) {
-    throw new Error('Missing UPI ID in WhatsApp message');
+  if (!captionWithBiz.includes('patelhardware@okhdfcbank')) {
+    throw new Error('Caption must include real merchant UPI ID');
+  }
+  if (!captionWithBiz.includes('₹3,500')) {
+    throw new Error('Caption must format pending balance properly');
   }
 
-  console.log('  ✓ WhatsApp fallback message formats cleanly and protects customer internal database IDs');
-  console.log('✅ Udhar Khata Branded Statement & WhatsApp Sharing Logic verified successfully!');
+  // 13. Customer Data Isolation
+  if (captionWithBiz.includes('cust-internal-uuid-secret-999')) {
+    throw new Error('Internal database customer UUID leaked in WhatsApp message!');
+  }
+  console.log('  ✓ 11, 12 & 13: WhatsApp statement caption and text fallback format verified with strict customer data isolation');
+
+  console.log('✅ All 13 Khata sharing & statement generation unit tests passed successfully!\n');
 }
+

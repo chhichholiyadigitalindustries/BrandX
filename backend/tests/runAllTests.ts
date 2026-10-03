@@ -24,7 +24,7 @@ async function runAll() {
   try {
     testGstCalculations();
     testKhataCalculations();
-    runKhataSharingTests();
+    await runKhataSharingTests();
     await testAuthAndSecurity();
     await runFirebaseAuthTests();
     await testBusinessModule();

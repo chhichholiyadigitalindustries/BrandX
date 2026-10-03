@@ -5,9 +5,9 @@ import { EmptyState } from '../components/EmptyState';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { ExpenseBook } from '../components/ExpenseBook';
-import { shareKhataStatementToWhatsApp, shareKhataTextToWhatsApp } from '../utils/posterShare';
+import { shareKhataStatementToWhatsApp, shareKhataTextToWhatsApp, isForbiddenShopName } from '../utils/posterShare';
 import { WhatsAppShareGuideModal } from '../components/WhatsAppShareGuideModal';
-import { customerKhataApi, authApi } from '../services/api';
+import { customerKhataApi, authApi, businessApi } from '../services/api';
 
 interface KhataScreenProps {
   business: BusinessProfile;
@@ -17,6 +17,7 @@ interface KhataScreenProps {
   expenses?: ExpenseItem[];
   onUpdateExpenses?: (expenses: ExpenseItem[]) => void;
   totalRevenue?: number;
+  onUpdateBusiness?: (business: BusinessProfile) => void;
 }
 
 export const KhataScreen: React.FC<KhataScreenProps> = ({
@@ -27,6 +28,7 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
   expenses = [],
   onUpdateExpenses = () => {},
   totalRevenue,
+  onUpdateBusiness,
 }) => {
   const { t, isHindi } = useLanguage();
   const [mainTab, setMainTab] = useState<'customers' | 'expenses'>('customers');
@@ -233,7 +235,68 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
     showToast(isHindi ? '🖼️ ग्राहक का खाता स्टेटमेंट तैयार हो रहा है...' : '🖼️ Generating Branded Khata Statement...');
 
     let targetCustomer = customer;
+    let activeBusiness: BusinessProfile = { ...business };
+
     try {
+      // 1. Ensure we have the authenticated merchant's latest business profile from PostgreSQL
+      if (authApi.isAuthenticated()) {
+        try {
+          const bRes = await businessApi.listBusinesses();
+          if (bRes.success && bRes.data && bRes.data.length > 0) {
+            const freshBiz = bRes.data[0];
+            activeBusiness = {
+              ...activeBusiness,
+              id: freshBiz.id || activeBusiness.id,
+              name: freshBiz.name || freshBiz.businessName || activeBusiness.name,
+              ownerName: freshBiz.ownerName || activeBusiness.ownerName,
+              category: freshBiz.category || freshBiz.businessType || activeBusiness.category,
+              phone: freshBiz.mobile || freshBiz.phone || activeBusiness.phone,
+              mobile: freshBiz.mobile || activeBusiness.mobile,
+              address: freshBiz.address || activeBusiness.address,
+              city: freshBiz.city || activeBusiness.city,
+              pincode: freshBiz.pincode || activeBusiness.pincode,
+              logoUrl: freshBiz.logoUrl || freshBiz.logo || activeBusiness.logoUrl,
+              upiId: freshBiz.upiId || activeBusiness.upiId,
+              upiLinked: freshBiz.upiLinked !== undefined ? freshBiz.upiLinked : activeBusiness.upiLinked,
+            };
+            businessApi.syncLocalProfile(freshBiz);
+            if (onUpdateBusiness) {
+              onUpdateBusiness(activeBusiness);
+            }
+          }
+        } catch (bizErr) {
+          console.warn('[Khata] Could not refresh business profile prior to share:', bizErr);
+        }
+      }
+
+      // 2. Double-check local storage sync if still forbidden or missing name
+      if (!activeBusiness.name || isForbiddenShopName(activeBusiness.name)) {
+        const stored = businessApi.getLocalProfile();
+        if (stored && stored.name && !isForbiddenShopName(stored.name)) {
+          activeBusiness = {
+            ...activeBusiness,
+            name: stored.name,
+            logoUrl: stored.logoUrl || activeBusiness.logoUrl,
+            upiId: stored.upiId || activeBusiness.upiId,
+            phone: stored.phone || stored.mobile || activeBusiness.phone,
+            category: stored.category || activeBusiness.category,
+            address: stored.address || activeBusiness.address,
+          };
+          if (onUpdateBusiness) {
+            onUpdateBusiness(activeBusiness);
+          }
+        }
+      }
+
+      // Safe debugging: Log ONLY non-sensitive metadata (no tokens, credentials, or PII)
+      console.log('[Khata Share Debug] Metadata:', {
+        businessNameExists: Boolean(activeBusiness.name && !isForbiddenShopName(activeBusiness.name)),
+        logoUrlExists: Boolean(activeBusiness.logoUrl),
+        upiIdExists: Boolean(activeBusiness.upiId),
+        hasBaaki: targetCustomer.totalDue > 0,
+        customerTransactionsCount: targetCustomer.transactions?.length || 0,
+      });
+
       // If transactions are not yet populated on this customer object, fetch full details from backend
       if ((!targetCustomer.transactions || targetCustomer.transactions.length === 0) && authApi.isAuthenticated()) {
         try {
@@ -260,7 +323,7 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
         } catch {}
       }
 
-      const res = await shareKhataStatementToWhatsApp(targetCustomer, business, reminderCaption);
+      const res = await shareKhataStatementToWhatsApp(targetCustomer, activeBusiness, reminderCaption);
       showToast(res.message);
       if (res.method === 'clipboard-copy' || res.method === 'download-only') {
         setWhatsAppGuide({
@@ -274,7 +337,7 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
     } catch (err: any) {
       console.error('Khata share unexpected error, falling back to text:', err);
       try {
-        const textFallback = shareKhataTextToWhatsApp(targetCustomer, business);
+        const textFallback = shareKhataTextToWhatsApp(targetCustomer, activeBusiness);
         showToast(textFallback.message);
       } catch (fbErr: any) {
         showToast('Khata share error: ' + (err.message || 'Failed'));

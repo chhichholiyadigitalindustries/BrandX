@@ -122,13 +122,14 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
         const res = await businessApi.listBusinesses();
         if (res.success && res.data && res.data.length > 0) {
           const biz = res.data[0];
+          businessApi.syncLocalProfile(biz);
           setBusiness((prev) => ({
             ...prev,
             id: biz.id,
-            name: biz.businessName || prev.name,
+            name: biz.name || biz.businessName || prev.name,
             ownerName: biz.ownerName || prev.ownerName,
-            category: biz.businessType || prev.category,
-            phone: biz.mobile || prev.phone,
+            category: biz.category || biz.businessType || prev.category,
+            phone: biz.mobile || biz.phone || prev.phone,
             email: biz.email || prev.email,
             address: biz.address || prev.address,
             city: biz.city || prev.city,
@@ -137,7 +138,7 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
             gstin: biz.gstin || prev.gstin,
             pan: biz.pan || prev.pan,
             upiId: biz.upiId || prev.upiId,
-            logoUrl: biz.logo || prev.logoUrl,
+            logoUrl: biz.logoUrl || biz.logo || prev.logoUrl,
           }));
         }
       } catch {}
@@ -289,13 +290,14 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
     businessApi.listBusinesses().then((res) => {
       if (res.success && res.data && res.data.length > 0) {
         const biz = res.data[0];
+        businessApi.syncLocalProfile(biz);
         setBusiness((prev) => ({
           ...prev,
           id: biz.id,
-          name: biz.businessName || prev.name,
+          name: biz.name || biz.businessName || prev.name,
           ownerName: biz.ownerName || prev.ownerName,
-          category: biz.businessType || prev.category,
-          phone: biz.mobile || prev.phone,
+          category: biz.category || biz.businessType || prev.category,
+          phone: biz.mobile || biz.phone || prev.phone,
           email: biz.email || prev.email,
           address: biz.address || prev.address,
           city: biz.city || prev.city,
@@ -304,7 +306,7 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
           gstin: biz.gstin || prev.gstin,
           pan: biz.pan || prev.pan,
           upiId: biz.upiId || prev.upiId,
-          logoUrl: biz.logo || prev.logoUrl,
+          logoUrl: biz.logoUrl || biz.logo || prev.logoUrl,
         }));
       }
     }).catch(() => {});
@@ -469,6 +471,7 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
             expenses={expenses}
             onUpdateExpenses={setExpenses}
             totalRevenue={combinedRevenue}
+            onUpdateBusiness={setBusiness}
           />
         )}
 

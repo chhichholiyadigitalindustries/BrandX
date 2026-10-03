@@ -1,7 +1,107 @@
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import QRCode from 'qrcode';
 import { DailyCalendarItem, BusinessProfile, KhataCustomer } from '../types';
+
+/**
+ * Detects whether a given business or shop name is a forbidden placeholder,
+ * demo store, default string, or BrandX branding.
+ */
+export function isForbiddenShopName(name?: string | null): boolean {
+  if (!name) return true;
+  const trimmed = name.trim().toLowerCase();
+  if (!trimmed) return true;
+
+  const forbiddenExact = [
+    'brandx',
+    'brandx store',
+    'brandx merchant',
+    'brandx merchant store',
+    'brandx business',
+    'brandx vyapar',
+    'brandx khata',
+    'demo store',
+    'default store',
+    'my store',
+    'my business',
+    'merchant store',
+    'test store',
+    'vyapar khata',
+  ];
+
+  if (forbiddenExact.includes(trimmed)) return true;
+  if (trimmed.startsWith('brandx ') || trimmed.startsWith('brandx-') || trimmed.startsWith('brandx_')) return true;
+
+  return false;
+}
+
+/**
+ * Resolves the genuine merchant business/shop name.
+ * If missing or a forbidden/demo value, returns the neutral fallback "Business Name Not Set".
+ * NEVER returns "BrandX Merchant Store", "BrandX Store", "Demo Store", or "Default Store".
+ */
+export function resolveShopName(business?: BusinessProfile | null): string {
+  const candidate = (business?.name || '').trim();
+  if (!candidate || isForbiddenShopName(candidate)) {
+    return 'Business Name Not Set';
+  }
+  return candidate;
+}
+
+/**
+ * Validates whether the given URL represents a genuine merchant logo.
+ * Rejects placeholder BrandX logos, default assets, or empty values so
+ * no broken or fake logos are rendered.
+ */
+export function isValidMerchantLogoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+
+  // Strip query parameters or hashes for clean file check
+  const cleanPath = lower.split('?')[0].split('#')[0];
+
+  if (
+    cleanPath.includes('brandx-logo') ||
+    cleanPath.includes('brandx_logo') ||
+    cleanPath.includes('brandkit-logo') ||
+    cleanPath.endsWith('/brandx.png') ||
+    cleanPath.endsWith('/brandx.jpg') ||
+    cleanPath.endsWith('/brandx.svg') ||
+    cleanPath === '/logo.png' ||
+    cleanPath === 'logo.png' ||
+    cleanPath === 'undefined' ||
+    cleanPath === 'null'
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Generates an official NPCI standard UPI payment URI deep link.
+ * Example: upi://pay?pa=<REAL_UPI_ID>&pn=<REAL_BUSINESS_NAME>&am=<AMOUNT>&cu=INR
+ */
+export function buildUpiPaymentUri(
+  upiId: string,
+  merchantName: string,
+  amount?: number
+): string {
+  const cleanUpi = upiId.trim();
+  const cleanName = merchantName.trim() || 'Merchant';
+  const encodedName = encodeURIComponent(cleanName);
+  const encodedUpi = encodeURIComponent(cleanUpi);
+
+  let uri = `upi://pay?pa=${encodedUpi}&pn=${encodedName}&cu=INR`;
+  if (typeof amount === 'number' && amount > 0) {
+    const formattedAmt = amount % 1 === 0 ? amount.toString() : amount.toFixed(2);
+    uri += `&am=${formattedAmt}`;
+  }
+  return uri;
+}
 
 /**
  * Helper to wrap text into multiple lines on a 2D canvas context
@@ -263,7 +363,7 @@ export async function generateBrandedPosterBlob(
   ctx.stroke();
 
   // Business Name with verified check
-  const shopName = business?.name || 'BrandX Business';
+  const shopName = resolveShopName(business);
   ctx.fillStyle = '#38BDF8';
   ctx.font = 'bold 34px "Segoe UI", Roboto, sans-serif';
   ctx.fillText('✓', 86, brandBarY + 54);
@@ -292,69 +392,6 @@ export async function generateBrandedPosterBlob(
   const blob = dataUrlToBlob(dataUrl);
 
   return { blob, dataUrl };
-}
-
-/**
- * Draws a crisp, self-contained QR code visual on Canvas with finder patterns and data modules
- */
-function drawUpiQrCode(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number
-) {
-  // White rounded background card
-  ctx.fillStyle = '#FFFFFF';
-  drawRoundedRect(ctx, x, y, size, size, 14);
-  ctx.fill();
-
-  const pad = 14;
-  const innerSize = size - pad * 2;
-  const finderSize = Math.floor(innerSize * 0.28);
-
-  const drawFinder = (fx: number, fy: number) => {
-    ctx.fillStyle = '#0F172A';
-    drawRoundedRect(ctx, fx, fy, finderSize, finderSize, 6);
-    ctx.fill();
-
-    const wGap = Math.floor(finderSize * 0.2);
-    ctx.fillStyle = '#FFFFFF';
-    drawRoundedRect(ctx, fx + wGap, fy + wGap, finderSize - wGap * 2, finderSize - wGap * 2, 4);
-    ctx.fill();
-
-    const cGap = Math.floor(finderSize * 0.35);
-    ctx.fillStyle = '#0F172A';
-    drawRoundedRect(ctx, fx + cGap, fy + cGap, finderSize - cGap * 2, finderSize - cGap * 2, 2);
-    ctx.fill();
-  };
-
-  // Top-Left, Top-Right, Bottom-Left finders
-  drawFinder(x + pad, y + pad);
-  drawFinder(x + size - pad - finderSize, y + pad);
-  drawFinder(x + pad, y + size - pad - finderSize);
-
-  // Data modules
-  const moduleCols = 15;
-  const cellSize = Math.floor(innerSize / moduleCols);
-  ctx.fillStyle = '#0F172A';
-
-  for (let r = 0; r < moduleCols; r++) {
-    for (let c = 0; c < moduleCols; c++) {
-      const inTL = r < 5 && c < 5;
-      const inTR = r < 5 && c >= moduleCols - 5;
-      const inBL = r >= moduleCols - 5 && c < 5;
-      if (inTL || inTR || inBL) continue;
-
-      if ((r * 7 + c * 13 + (r + c) % 3) % 2 === 0) {
-        ctx.fillRect(
-          x + pad + c * cellSize + 1,
-          y + pad + r * cellSize + 1,
-          cellSize - 2,
-          cellSize - 2
-        );
-      }
-    }
-  }
 }
 
 /**
@@ -397,9 +434,12 @@ export async function generateKhataStatementBlob(
   const recentTxs = allTxs.slice(0, 8);
   const hasMoreTxs = allTxs.length > 8;
 
-  // Shop UPI details
+  // Real merchant business details (never demo / BrandX fallback)
+  const shopName = resolveShopName(business);
   const shopUpiId = (business?.upiId || '').trim();
-  const hasUpi = Boolean(shopUpiId);
+
+  // QR should only be shown if business has a real UPI ID AND customer has outstanding balance (Baaki > 0)
+  const shouldShowPaymentQr = Boolean(shopUpiId) && currentBaaki > 0;
 
   // 2. Dynamic Height Calculation to prevent clipping or overlapping
   const shopCardH = 150;
@@ -407,7 +447,9 @@ export async function generateKhataStatementBlob(
   const summaryH = 140;
   const txTableHeight =
     44 + 12 + 48 + (recentTxs.length === 0 ? 70 : recentTxs.length * 62) + (hasMoreTxs ? 36 : 0);
-  const upiSectionHeight = hasUpi ? (24 + 250) : 0;
+  const qrSize = 270; // High resolution 270px QR (250-300px spec)
+  const upiBoxH = 320;
+  const upiSectionHeight = shouldShowPaymentQr ? (24 + upiBoxH) : 0;
   const totalCalculatedHeight =
     40 + shopCardH + 20 + custCardH + 20 + summaryH + 24 + txTableHeight + upiSectionHeight + 24 + 50 + 40;
   const height = Math.max(1080, Math.ceil(totalCalculatedHeight));
@@ -445,11 +487,11 @@ export async function generateKhataStatementBlob(
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Try loading shop logo if provided with timeout safety; NEVER draw a placeholder logo
+  // Try loading real merchant logo if provided with timeout safety; NEVER render fake/default BrandX logo
   let logoImg: HTMLImageElement | null = null;
-  if (business?.logoUrl && business.logoUrl.trim().length > 0) {
+  if (isValidMerchantLogoUrl(business?.logoUrl)) {
     try {
-      logoImg = await loadSafeImage(business.logoUrl.trim(), 2000);
+      logoImg = await loadSafeImage(business!.logoUrl!.trim(), 2500);
     } catch {
       logoImg = null;
     }
@@ -475,11 +517,8 @@ export async function generateKhataStatementBlob(
     ctx.stroke();
   }
 
-  // Shop Name (Exact name from authenticated profile; NEVER use "BrandX")
+  // Shop Name (Exact name from merchant's real business profile; NEVER "BrandX Merchant Store")
   const shopTextX = hasLogo ? logoX + logoSize + 22 : cardPadding + 28;
-  const rawShopName = business?.name?.trim() || '';
-  const isBrandXShopName = /^brandx(\s+store)?$/i.test(rawShopName);
-  const shopName = (!rawShopName || isBrandXShopName) ? 'Vyapar Khata' : rawShopName;
 
   ctx.fillStyle = '#FFFFFF';
   if (shopName.length > 28) {
@@ -749,11 +788,10 @@ export async function generateKhataStatementBlob(
   }
 
   // -------------------------------------------------------------
-  // 5. PAYMENT / UPI SECTION (Only rendered if shop has UPI ID configured)
+  // 5. PAYMENT / UPI SECTION (Only rendered if shop has UPI ID AND Baaki > 0)
   // -------------------------------------------------------------
-  if (hasUpi) {
+  if (shouldShowPaymentQr) {
     const upiBoxY = curTxY + 16;
-    const upiBoxH = 250;
     ctx.fillStyle = '#131B2E';
     drawRoundedRect(ctx, cardPadding, upiBoxY, contentWidth, upiBoxH, 20);
     ctx.fill();
@@ -761,27 +799,49 @@ export async function generateKhataStatementBlob(
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Draw scannable UPI QR Code on Canvas
+    // 1. Generate real standard machine-readable UPI QR Code using 'qrcode' library
+    const upiPayload = buildUpiPaymentUri(shopUpiId, shopName, currentBaaki);
     const qrX = cardPadding + 28;
-    const qrY = upiBoxY + (upiBoxH - 180) / 2;
-    const qrSize = 180;
+    const qrY = upiBoxY + (upiBoxH - qrSize) / 2;
 
-    let qrImage: HTMLImageElement | null = null;
     try {
-      const upiLink = `upi://pay?pa=${encodeURIComponent(shopUpiId)}&pn=${encodeURIComponent(shopName)}&am=${currentBaaki}&cu=INR`;
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}`;
-      qrImage = await loadSafeImage(qrApiUrl, 2000);
-    } catch {
-      qrImage = null;
-    }
+      // Create offscreen canvas for crisp, machine-scannable QR matrix with quiet zone
+      const qrCanvas = document.createElement('canvas');
+      await QRCode.toCanvas(qrCanvas, upiPayload, {
+        width: qrSize,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: {
+          dark: '#0F172A',
+          light: '#FFFFFF',
+        },
+      });
 
-    if (qrImage) {
+      ctx.save();
+      drawRoundedRect(ctx, qrX, qrY, qrSize, qrSize, 16);
+      ctx.clip();
+      ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+      ctx.restore();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      drawRoundedRect(ctx, qrX, qrY, qrSize, qrSize, 16);
+      ctx.stroke();
+    } catch (qrErr) {
+      console.error('[KhataShare] Real QR Code generation error:', qrErr);
+      // Clean fallback: clear readable container without fake vector pattern
       ctx.fillStyle = '#FFFFFF';
-      drawRoundedRect(ctx, qrX, qrY, qrSize, qrSize, 14);
+      drawRoundedRect(ctx, qrX, qrY, qrSize, qrSize, 16);
       ctx.fill();
-      ctx.drawImage(qrImage, qrX + 8, qrY + 8, qrSize - 16, qrSize - 16);
-    } else {
-      drawUpiQrCode(ctx, qrX, qrY, qrSize);
+
+      ctx.fillStyle = '#1E293B';
+      ctx.font = 'bold 20px "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Pay via UPI App', qrX + qrSize / 2, qrY + qrSize / 2 - 12);
+      ctx.font = '500 16px "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = '#64748B';
+      ctx.fillText('Use UPI ID on right', qrX + qrSize / 2, qrY + qrSize / 2 + 16);
+      ctx.textAlign = 'left';
     }
 
     // UPI Details on Right
@@ -792,13 +852,13 @@ export async function generateKhataStatementBlob(
 
     ctx.fillStyle = '#94A3B8';
     ctx.font = '500 18px "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('PhonePe  •  Google Pay  •  Paytm  •  BHIM  •  Cred', upiTextX, upiBoxY + 86);
+    ctx.fillText('PhonePe  •  Google Pay  •  Paytm  •  BHIM  •  Cred', upiTextX, upiBoxY + 88);
 
     // UPI ID Box
-    const upiBadgeW = 440;
-    const upiBadgeH = 46;
+    const upiBadgeW = Math.min(520, contentWidth - (upiTextX - cardPadding) - 24);
+    const upiBadgeH = 48;
     ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
-    drawRoundedRect(ctx, upiTextX, upiBoxY + 104, upiBadgeW, upiBadgeH, 10);
+    drawRoundedRect(ctx, upiTextX, upiBoxY + 112, upiBadgeW, upiBadgeH, 10);
     ctx.fill();
     ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
     ctx.lineWidth = 1;
@@ -806,19 +866,19 @@ export async function generateKhataStatementBlob(
 
     ctx.fillStyle = '#60A5FA';
     ctx.font = 'bold 22px "Segoe UI", Roboto, monospace';
-    ctx.fillText(`UPI ID: ${shopUpiId}`, upiTextX + 16, upiBoxY + 135);
+    ctx.fillText(`UPI ID: ${shopUpiId}`, upiTextX + 16, upiBoxY + 144);
 
     // Balance status note
-    ctx.fillStyle = isDue ? '#FCD34D' : '#34D399';
-    ctx.font = 'bold 18px "Segoe UI", Roboto, sans-serif';
-    const noteText = isDue
-      ? `Amount to Pay: ₹${currentBaaki.toLocaleString('en-IN')}`
-      : 'Account Status: Fully Settled';
-    ctx.fillText(noteText, upiTextX, upiBoxY + 180);
+    ctx.fillStyle = '#FCD34D';
+    ctx.font = 'bold 20px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(`Amount to Pay: ₹${currentBaaki.toLocaleString('en-IN')}`, upiTextX, upiBoxY + 195);
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '500 16px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('Scan QR code or use the UPI ID above to settle directly.', upiTextX, upiBoxY + 230);
 
     ctx.fillStyle = '#64748B';
-    ctx.font = '500 16px "Segoe UI", Roboto, sans-serif';
-    ctx.fillText('Scan QR code or use the UPI ID above to settle directly.', upiTextX, upiBoxY + 212);
+    ctx.fillText('Instant credit • Zero convenience fee', upiTextX, upiBoxY + 258);
   }
 
   // -------------------------------------------------------------
@@ -1095,10 +1155,11 @@ export async function shareDailyPosterToWhatsApp(
   cal: DailyCalendarItem,
   business?: BusinessProfile
 ): Promise<PosterShareResult> {
+  const shopName = resolveShopName(business);
   const caption =
     `*${cal.headline}*\n\n` +
     (cal.quoteHindi ? `"${cal.quoteHindi}"\n\n` : '') +
-    `✨ Best wishes from *${business?.name || 'BrandX Store'}*\n` +
+    `✨ Best wishes from *${shopName}*\n` +
     (business?.address ? `📍 ${business.address}\n` : '') +
     (business?.phone ? `📞 +91 ${business.phone}` : '');
 
@@ -1117,19 +1178,21 @@ export function shareKhataTextToWhatsApp(
   business?: BusinessProfile,
   customCaption?: string
 ): PosterShareResult {
-  const rawShopName = business?.name?.trim() || '';
-  const isBrandXShopName = /^brandx(\s+store)?$/i.test(rawShopName);
-  const shopName = (!rawShopName || isBrandXShopName) ? 'Vyapar Khata' : rawShopName;
+  const shopName = resolveShopName(business);
   const isDue = (customer.totalDue || 0) > 0;
   const cleanPhone = (customer.phone || '').replace(/\D/g, '');
+  const cleanUpi = (business?.upiId || '').trim();
+  const upiLink = cleanUpi && isDue
+    ? buildUpiPaymentUri(cleanUpi, shopName, customer.totalDue)
+    : '';
 
   const caption = customCaption || (
     `🙏 *Namaste ${customer.name} ji,*\n\n` +
     `Aapke khate ka hisab from *${shopName}*:\n` +
     (isDue
       ? `📌 *Pending Balance:* ₹${customer.totalDue.toLocaleString('en-IN')}\n` +
-        (business?.upiId ? `💳 *UPI ID for Payment:* ${business.upiId}\n` : '') +
-        (business?.upiId ? `🔗 *Pay Link:* upi://pay?pa=${encodeURIComponent(business.upiId)}&pn=${encodeURIComponent(shopName)}&am=${customer.totalDue}&cu=INR\n\n` : '\n')
+        (cleanUpi ? `💳 *UPI ID for Payment:* ${cleanUpi}\n` : '') +
+        (upiLink ? `🔗 *Pay Link:* ${upiLink}\n\n` : '\n')
       : `✅ *Account Status:* Sabhi hisab barabar (₹0 Balance)\n\n`) +
     (business?.phone ? `📞 *Sampark:* +91 ${business.phone}\n` : '') +
     `Dhanyawaad! ✨\n` +
@@ -1168,18 +1231,20 @@ export async function shareKhataStatementToWhatsApp(
   business?: BusinessProfile,
   customCaption?: string
 ): Promise<PosterShareResult> {
-  const rawShopName = business?.name?.trim() || '';
-  const isBrandXShopName = /^brandx(\s+store)?$/i.test(rawShopName);
-  const shopName = (!rawShopName || isBrandXShopName) ? 'Vyapar Khata' : rawShopName;
+  const shopName = resolveShopName(business);
   const isDue = (customer.totalDue || 0) > 0;
+  const cleanUpi = (business?.upiId || '').trim();
+  const upiLink = cleanUpi && isDue
+    ? buildUpiPaymentUri(cleanUpi, shopName, customer.totalDue)
+    : '';
 
   const caption = customCaption || (
     `🙏 *Namaste ${customer.name} ji,*\n\n` +
     `Aapke khate ka latest statement attached hai from *${shopName}*.\n\n` +
     (isDue
       ? `📌 *Pending Balance:* ₹${customer.totalDue.toLocaleString('en-IN')}\n` +
-        (business?.upiId ? `💳 *UPI ID for Payment:* ${business.upiId}\n` : '') +
-        (business?.upiId ? `🔗 *Pay Link:* upi://pay?pa=${encodeURIComponent(business.upiId)}&pn=${encodeURIComponent(shopName)}&am=${customer.totalDue}&cu=INR\n\n` : '\n')
+        (cleanUpi ? `💳 *UPI ID for Payment:* ${cleanUpi}\n` : '') +
+        (upiLink ? `🔗 *Pay Link:* ${upiLink}\n\n` : '\n')
       : `✅ *Account Status:* Sabhi hisab barabar (₹0 Balance)\n\n`) +
     `Kripya attached statement check kar lein. Dhanyawaad! ✨\n` +
     `_Sent via BrandX Digital Khata_`
