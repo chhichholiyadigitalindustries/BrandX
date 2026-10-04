@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { digitalCardApi, PublicCardData } from '../services/digitalCardApi';
+import { NfcCardPdfTemplate, NfcCardExportData } from './NfcCardPdfTemplate';
+import { exportNfcVisitingCardToPdf, prepareNfcCardExportData } from '../utils/nfcCardPdfExport';
+import { getNfcCardTheme } from '../utils/nfcCardTheme';
 
 interface PublicCardViewProps {
   slug: string;
@@ -11,6 +14,8 @@ export const PublicCardView: React.FC<PublicCardViewProps> = ({ slug }) => {
   const [error, setError] = useState<string | null>(null);
   const [cardSide, setCardSide] = useState<'front' | 'back'>('front');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [exportCardData, setExportCardData] = useState<NfcCardExportData | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -68,6 +73,71 @@ export const PublicCardView: React.FC<PublicCardViewProps> = ({ slug }) => {
     document.body.removeChild(link);
     showToast('Contact card (.vcf) downloaded! Tap to save in your phone contacts 📇');
   };
+
+  useEffect(() => {
+    if (card) {
+      const bizProfile: any = {
+        name: card.companyName,
+        category: card.business?.category || 'Business',
+        ownerName: card.fullName,
+        phone: card.phone,
+        email: card.email || '',
+        address: card.address || '',
+        city: card.city || '',
+        state: card.state || '',
+        logoUrl: card.logoUrl || card.profileImageUrl || null,
+        upiId: card.upiId || '',
+      };
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://brandx.me';
+      const fullCardUrl = `${origin}/card/${slug}`;
+      prepareNfcCardExportData(bizProfile, card, fullCardUrl, card.theme)
+        .then((data) => setExportCardData(data))
+        .catch(() => {});
+    }
+  }, [card, slug]);
+
+  const handleDownloadCardPdf = async () => {
+    if (!card) return;
+    setIsExportingPdf(true);
+    showToast('Generating official NFC Visiting Card PDF... 📇');
+    try {
+      const bizProfile: any = {
+        name: card.companyName,
+        category: card.business?.category || 'Business',
+        ownerName: card.fullName,
+        phone: card.phone,
+        email: card.email || '',
+        address: card.address || '',
+        city: card.city || '',
+        state: card.state || '',
+        logoUrl: card.logoUrl || card.profileImageUrl || null,
+        upiId: card.upiId || '',
+      };
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://brandx.me';
+      const fullCardUrl = `${origin}/card/${slug}`;
+      const freshData = await prepareNfcCardExportData(bizProfile, card, fullCardUrl, card.theme);
+      setExportCardData(freshData);
+      await new Promise((r) => setTimeout(r, 150));
+
+      const res = await exportNfcVisitingCardToPdf({
+        business: bizProfile,
+        card,
+        cardUrl: fullCardUrl,
+        themeId: card.theme,
+      });
+
+      if (res.success) {
+        showToast('Visiting Card PDF downloaded! (Front & Back) ✨');
+      } else {
+        showToast(`Failed to export PDF: ${res.error || 'Error'}`);
+      }
+    } catch (e: any) {
+      showToast(`Export error: ${e?.message || 'Failed'}`);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -147,11 +217,23 @@ export const PublicCardView: React.FC<PublicCardViewProps> = ({ slug }) => {
 
           {cardSide === 'front' ? (
             /* Front Side */
-            <div className="relative aspect-[1.75/1] rounded-3xl bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-950 p-6 border-2 border-indigo-400/40 shadow-2xl flex flex-col justify-between overflow-hidden">
+            <div
+              style={{
+                background: getNfcCardTheme(card.theme).frontGradient,
+                backgroundColor: getNfcCardTheme(card.theme).frontFallbackBg,
+                borderColor: getNfcCardTheme(card.theme).borderColor,
+                color: getNfcCardTheme(card.theme).textPrimary,
+              }}
+              className="relative aspect-[1.75/1] rounded-3xl p-6 border-2 shadow-2xl flex flex-col justify-between overflow-hidden"
+            >
               <div className="flex items-start justify-between">
                 <div className="space-y-0.5 max-w-[70%]">
-                  <h2 className="text-base font-black text-white leading-tight truncate">{card.companyName}</h2>
-                  <p className="text-[11px] text-indigo-200">{card.business?.category || 'Business Super App'}</p>
+                  <h2 className="text-base font-black leading-tight truncate" style={{ color: getNfcCardTheme(card.theme).textPrimary }}>
+                    {card.companyName}
+                  </h2>
+                  <p className="text-[11px]" style={{ color: getNfcCardTheme(card.theme).textSecondary }}>
+                    {card.business?.category || 'Business Super App'}
+                  </p>
                 </div>
                 <div className="w-12 h-12 rounded-2xl bg-white/10 p-1 border border-white/20 overflow-hidden shrink-0 shadow-lg">
                   <img
@@ -163,52 +245,99 @@ export const PublicCardView: React.FC<PublicCardViewProps> = ({ slug }) => {
               </div>
 
               <div className="space-y-1 text-xs">
-                <div className="font-extrabold text-base text-white">{card.fullName}</div>
-                <div className="text-[11px] text-indigo-300 font-medium">{card.designation || 'Proprietor'}</div>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-300 pt-1">
-                  <span className="material-symbols-outlined text-[14px] text-blue-400">call</span>
+                <div className="font-extrabold text-base" style={{ color: getNfcCardTheme(card.theme).textPrimary }}>
+                  {card.fullName}
+                </div>
+                <div className="text-[11px] font-medium" style={{ color: getNfcCardTheme(card.theme).accentColor }}>
+                  {card.designation || 'Proprietor'}
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] pt-1" style={{ color: getNfcCardTheme(card.theme).textPrimary }}>
+                  <span className="material-symbols-outlined text-[14px]" style={{ color: getNfcCardTheme(card.theme).accentColor }}>call</span>
                   <span>+91 {card.phone}</span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[9px] text-indigo-300/90 font-mono">
+              <div
+                style={{ borderTopColor: getNfcCardTheme(card.theme).borderColor, color: getNfcCardTheme(card.theme).textSecondary }}
+                className="flex items-center justify-between border-t pt-2 text-[9px] font-mono"
+              >
                 <span>BRANDX SMART NFC</span>
                 <span className="animate-pulse">TAP TO CONNECT 📡</span>
               </div>
             </div>
           ) : (
             /* Back Side with QR */
-            <div className="relative aspect-[1.75/1] rounded-3xl bg-gradient-to-br from-[#0F172A] to-[#020617] p-6 border-2 border-slate-700 shadow-2xl flex items-center justify-between overflow-hidden">
+            <div
+              style={{
+                background: getNfcCardTheme(card.theme).backGradient,
+                backgroundColor: getNfcCardTheme(card.theme).backFallbackBg,
+                borderColor: getNfcCardTheme(card.theme).borderColor,
+                color: getNfcCardTheme(card.theme).textPrimary,
+              }}
+              className="relative aspect-[1.75/1] rounded-3xl p-6 border-2 shadow-2xl flex items-center justify-between overflow-hidden"
+            >
               <div className="space-y-2 max-w-[55%]">
-                <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider">
+                <span
+                  style={{ color: getNfcCardTheme(card.theme).accentColor }}
+                  className="text-[10px] font-extrabold uppercase tracking-wider"
+                >
                   SCAN TO SAVE CONTACT
                 </span>
-                <h4 className="text-xs font-bold text-white">Save {card.fullName} in Phonebook</h4>
-                <p className="text-[10px] text-slate-400 leading-relaxed">
+                <h4 className="text-xs font-bold" style={{ color: getNfcCardTheme(card.theme).textPrimary }}>
+                  Save {card.fullName} in Phonebook
+                </h4>
+                <p className="text-[10px] leading-relaxed" style={{ color: getNfcCardTheme(card.theme).textSecondary }}>
                   Includes Phone, WhatsApp, Address, Email &amp; Digital Store link.
                 </p>
               </div>
 
-              <div className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col items-center justify-center shrink-0 border-2 border-indigo-500">
+              <div
+                style={{
+                  backgroundColor: getNfcCardTheme(card.theme).qrContainerBg,
+                  borderColor: getNfcCardTheme(card.theme).qrBorderColor,
+                }}
+                className="p-2 rounded-2xl shadow-2xl flex flex-col items-center justify-center shrink-0 border-2"
+              >
                 <img
-                  src={qrUrl}
+                  src={exportCardData?.qrDataUrl || qrUrl}
                   alt="Contact QR Code"
                   className="w-20 h-20"
                 />
-                <span className="text-[8px] font-black text-slate-900 mt-1 uppercase">BRANDX NFC</span>
+                <span
+                  style={{ color: getNfcCardTheme(card.theme).qrLabelColor }}
+                  className="text-[8px] font-black mt-1 uppercase"
+                >
+                  BRANDX NFC
+                </span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Primary Call to Action: Save Contact */}
-        <button
-          onClick={handleDownloadVCard}
-          className="w-full py-3.5 px-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-sm rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer border border-white/10"
-        >
-          <span className="material-symbols-outlined text-[22px]">person_add</span>
-          <span>Save Contact (.vcf)</span>
-        </button>
+        {/* Call to Actions: Save Contact & Download PDF */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            onClick={handleDownloadVCard}
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-xs rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer border border-white/10"
+          >
+            <span className="material-symbols-outlined text-[20px]">person_add</span>
+            <span>Save Contact (.vcf)</span>
+          </button>
+
+          <button
+            onClick={handleDownloadCardPdf}
+            disabled={isExportingPdf}
+            className="w-full py-3.5 px-4 bg-white/10 hover:bg-white/15 disabled:opacity-60 text-white font-bold text-xs rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer border border-white/10"
+          >
+            {isExportingPdf ? (
+              <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+            ) : (
+              <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+            )}
+            <span>{isExportingPdf ? 'Exporting PDF...' : 'Download Card PDF 📄'}</span>
+          </button>
+        </div>
+
 
         {/* Contact Details & Quick Links Card */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 space-y-3 shadow-sm">
@@ -321,7 +450,11 @@ export const PublicCardView: React.FC<PublicCardViewProps> = ({ slug }) => {
             Powered by BrandX Vyapari Platform
           </p>
         </div>
+
+        {/* Hidden Off-Screen Template for High-Res PDF Export */}
+        {exportCardData && <NfcCardPdfTemplate cardData={exportCardData} />}
       </div>
     </div>
   );
 };
+

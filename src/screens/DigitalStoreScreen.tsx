@@ -16,6 +16,10 @@ import {
   BackendDigitalStoreItem,
   BackendDigitalCard,
 } from '../services/api';
+import { NfcCardPdfTemplate, NfcCardExportData } from '../components/NfcCardPdfTemplate';
+import { exportNfcVisitingCardToPdf, prepareNfcCardExportData } from '../utils/nfcCardPdfExport';
+import { getNfcCardTheme } from '../utils/nfcCardTheme';
+
 
 interface DigitalStoreScreenProps {
   business: BusinessProfile;
@@ -134,6 +138,11 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
   const [showAddShowcaseModal, setShowAddShowcaseModal] = useState(false);
   const [showcaseSearchQuery, setShowcaseSearchQuery] = useState('');
   const [addingShowcaseId, setAddingShowcaseId] = useState<string | null>(null);
+
+  // NFC Card PDF Export State
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfProgressText, setPdfProgressText] = useState('');
+  const [exportCardData, setExportCardData] = useState<NfcCardExportData | null>(null);
 
   // Card 3D Flip State
   const [isCardFlipped, setIsCardFlipped] = useState(false);
@@ -254,6 +263,8 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
 
   const storeUrl = `${currentOrigin}/store/${storeSlug}`;
   const cardUrl = `${currentOrigin}/card/${cardSlug}`;
+  const activeCardTheme = getNfcCardTheme(cardFormData.theme || card?.theme);
+
 
   // Store actions
   const handleCopyStoreLink = () => {
@@ -410,6 +421,62 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
       showToast('Digital vCard (.vcf) downloaded! 📇');
     }
   };
+
+  // Pre-prepare high-resolution card export template and QR code whenever card, business or theme changes
+  useEffect(() => {
+    if (activeTab === 'vcard' || !exportCardData) {
+      prepareNfcCardExportData(business, card, cardUrl, cardFormData.theme || card?.theme)
+        .then((data) => setExportCardData(data))
+        .catch((err) => console.warn('Could not prepare NFC card export data:', err));
+    }
+  }, [activeTab, business, card, cardUrl, cardFormData.theme]);
+
+  // Download high-resolution print-ready 2-page NFC Card PDF (Front & Back)
+  const handleDownloadCardPdf = async (printAfter = false) => {
+    setIsExportingPdf(true);
+    setPdfProgressText(printAfter ? 'Preparing card for print...' : 'Generating 2-page Card PDF...');
+    showToast(printAfter ? 'Generating print-ready Card PDF... 🖨️' : 'Generating high-res NFC Card PDF... 📇');
+
+    try {
+      // 1. Fresh sync of data with current form theme
+      const freshData = await prepareNfcCardExportData(
+        business,
+        card,
+        cardUrl,
+        cardFormData.theme || card?.theme
+      );
+      setExportCardData(freshData);
+
+      // Brief delay to let React flush the DOM update to the template container
+      await new Promise((r) => setTimeout(r, 150));
+
+      const res = await exportNfcVisitingCardToPdf({
+        business,
+        card,
+        cardUrl,
+        themeId: cardFormData.theme || card?.theme,
+        printAfterGenerate: printAfter,
+        onProgress: (step) => setPdfProgressText(step),
+      });
+
+      if (res.success) {
+        showToast(
+          printAfter
+            ? 'High-res NFC Card sent to printer! 🖨️'
+            : `NFC Card PDF downloaded! (${res.filename}) ✨`
+        );
+      } else {
+        showToast(`PDF Export failed: ${res.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      console.error('PDF export error:', err);
+      showToast(`Error: ${err?.message || 'Failed to export card PDF'}`);
+    } finally {
+      setIsExportingPdf(false);
+      setPdfProgressText('');
+    }
+  };
+
 
   // Add Product to Store Showcase
   const handleAddProductToShowcase = async (product: StoreProduct) => {
@@ -1443,13 +1510,21 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
               >
                 {!isCardFlipped ? (
                   /* Front Side */
-                  <div className="relative aspect-[1.75/1] rounded-3xl bg-gradient-to-br from-[#1E1B4B] via-[#0F172A] to-[#1E293B] p-6 border-2 border-indigo-500/40 shadow-2xl flex flex-col justify-between overflow-hidden">
+                  <div
+                    style={{
+                      background: activeCardTheme.frontGradient,
+                      backgroundColor: activeCardTheme.frontFallbackBg,
+                      borderColor: activeCardTheme.borderColor,
+                      color: activeCardTheme.textPrimary,
+                    }}
+                    className="relative aspect-[1.75/1] rounded-3xl p-6 border-2 shadow-2xl flex flex-col justify-between overflow-hidden"
+                  >
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="text-base font-black text-white tracking-wide">
+                        <h3 className="text-base font-black tracking-wide" style={{ color: activeCardTheme.textPrimary }}>
                           {card?.companyName || business.name}
                         </h3>
-                        <p className="text-xs text-indigo-300">{business.category}</p>
+                        <p className="text-xs" style={{ color: activeCardTheme.textSecondary }}>{business.category}</p>
                       </div>
                       <div className="w-12 h-12 rounded-xl bg-white/10 p-1 border border-white/20 overflow-hidden shadow">
                         <img
@@ -1460,24 +1535,29 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                       </div>
                     </div>
 
-                    <div className="space-y-1 text-xs text-slate-200">
-                      <div className="font-extrabold text-sm text-white">
+                    <div className="space-y-1 text-xs">
+                      <div className="font-extrabold text-sm" style={{ color: activeCardTheme.textPrimary }}>
                         {card?.fullName || business.ownerName || business.name}
                       </div>
-                      <div className="text-[11px] text-blue-300 font-semibold">{card?.designation || 'Owner / Vyapari'}</div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                        <span className="material-symbols-outlined text-[14px] text-blue-400">call</span>
+                      <div className="text-[11px] font-semibold" style={{ color: activeCardTheme.accentColor }}>
+                        {card?.designation || 'Owner / Vyapari'}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px]" style={{ color: activeCardTheme.textPrimary }}>
+                        <span className="material-symbols-outlined text-[14px]" style={{ color: activeCardTheme.accentColor }}>call</span>
                         <span>+91 {card?.phone || business.phone}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                      <div className="flex items-center gap-1.5 text-[11px]" style={{ color: activeCardTheme.textSecondary }}>
                         <span className="material-symbols-outlined text-[14px] text-rose-400">location_on</span>
                         <span className="truncate">{card?.address || `${business.address}, ${business.city}`}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[9px] text-indigo-300">
+                    <div
+                      style={{ borderTopColor: activeCardTheme.borderColor, color: activeCardTheme.textSecondary }}
+                      className="flex items-center justify-between border-t pt-2 text-[9px]"
+                    >
                       <span className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[14px]">contactless</span>
+                        <span className="material-symbols-outlined text-[14px]" style={{ color: activeCardTheme.accentColor }}>contactless</span>
                         <span>SMART NFC BUSINESS CARD</span>
                       </span>
                       <span className="font-mono text-slate-400">TAP TO CONNECT</span>
@@ -1485,27 +1565,49 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                   </div>
                 ) : (
                   /* Back Side */
-                  <div className="relative aspect-[1.75/1] rounded-3xl bg-gradient-to-br from-[#0B0F19] to-[#1E293B] p-6 border-2 border-indigo-500/40 shadow-2xl flex items-center justify-between overflow-hidden">
+                  <div
+                    style={{
+                      background: activeCardTheme.backGradient,
+                      backgroundColor: activeCardTheme.backFallbackBg,
+                      borderColor: activeCardTheme.borderColor,
+                      color: activeCardTheme.textPrimary,
+                    }}
+                    className="relative aspect-[1.75/1] rounded-3xl p-6 border-2 shadow-2xl flex items-center justify-between overflow-hidden"
+                  >
                     <div className="space-y-2 max-w-[55%]">
-                      <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-wider">
+                      <span
+                        style={{ color: activeCardTheme.accentColor }}
+                        className="text-[10px] font-extrabold uppercase tracking-wider"
+                      >
                         SCAN TO SAVE CONTACT
                       </span>
-                      <h4 className="text-xs font-bold text-white">
+                      <h4 className="text-xs font-bold" style={{ color: activeCardTheme.textPrimary }}>
                         Save {card?.fullName || business.name} directly into your phone
                       </h4>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-[10px]" style={{ color: activeCardTheme.textSecondary }}>
                         Includes Phone, WhatsApp, Maps &amp; Digital Dukaan Link.
                       </p>
                     </div>
 
                     {/* QR Code on card */}
-                    <div className="bg-white p-2 rounded-2xl shadow-xl flex flex-col items-center justify-center shrink-0 border-2 border-indigo-500">
+                    <div
+                      style={{
+                        backgroundColor: activeCardTheme.qrContainerBg,
+                        borderColor: activeCardTheme.qrBorderColor,
+                      }}
+                      className="p-2 rounded-2xl shadow-xl flex flex-col items-center justify-center shrink-0 border-2"
+                    >
                       <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(cardUrl)}`}
+                        src={exportCardData?.qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(cardUrl)}`}
                         alt="QR Code"
                         className="w-20 h-20"
                       />
-                      <span className="text-[8px] font-black text-slate-900 mt-1 uppercase">BRANDX NFC</span>
+                      <span
+                        style={{ color: activeCardTheme.qrLabelColor }}
+                        className="text-[8px] font-black mt-1 uppercase"
+                      >
+                        BRANDX NFC
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1514,6 +1616,28 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
 
             {/* Action Buttons for Visiting Card */}
             <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={() => handleDownloadCardPdf(false)}
+                disabled={isExportingPdf}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-60 text-white text-xs font-bold rounded-2xl shadow-lg shadow-emerald-900/40 transition-all active:scale-95 cursor-pointer border border-emerald-400/30"
+              >
+                {isExportingPdf ? (
+                  <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                )}
+                <span>{isExportingPdf ? (pdfProgressText || 'Exporting PDF...') : 'Download Card PDF (Front & Back) 📄'}</span>
+              </button>
+
+              <button
+                onClick={() => handleDownloadCardPdf(true)}
+                disabled={isExportingPdf}
+                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-60 text-slate-200 text-xs font-bold rounded-2xl border border-white/10 transition-all active:scale-95 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">print</span>
+                <span>Print Standee / Cards 🖨️</span>
+              </button>
+
               <button
                 onClick={handleDownloadVCard}
                 className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-2xl shadow-lg transition-all active:scale-95 cursor-pointer"
@@ -1535,18 +1659,10 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                 <span className="material-symbols-outlined text-[18px]">contactless</span>
                 <span>Program NFC Tag 📡</span>
               </button>
-
-              <button
-                onClick={() => {
-                  window.print();
-                  showToast('Print dialog opened for Visiting Card! 🖨️');
-                }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold rounded-2xl border border-white/10 transition-all active:scale-95 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">print</span>
-                <span>Print Standee / Cards</span>
-              </button>
             </div>
+
+            {/* Hidden Off-Screen Deterministic Card Template for High-Res PDF Export */}
+            {exportCardData && <NfcCardPdfTemplate cardData={exportCardData} />}
           </div>
         )}
 
