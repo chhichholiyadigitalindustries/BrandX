@@ -15,17 +15,57 @@ export const ProModal: React.FC<ProModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [selectedPlan, setSelectedPlan] = useState<ProPlanType>('trial');
+  const [selectedPlan, setSelectedPlan] = useState<ProPlanType>('yearly');
   const [selectedUpiApp, setSelectedUpiApp] = useState<'gpay' | 'phonepe' | 'paytm' | 'bhim'>('gpay');
-  const [step, setStep] = useState<'plans' | 'autopay-confirm' | 'success'>('plans');
+  const [step, setStep] = useState<'plans' | 'autopay-confirm' | 'success' | 'active'>('plans');
+  const [activeSub, setActiveSub] = useState<any>(null);
+  const [isLoadingSub, setIsLoadingSub] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [upiPin, setUpiPin] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setStep('plans');
       setIsProcessing(false);
       setUpiPin('');
+      setIsLoadingSub(true);
+
+      // Check authoritative server subscription status first
+      subscriptionApi.getCurrentSubscription()
+        .then((sub) => {
+          setIsLoadingSub(false);
+          if (sub && sub.isPro && (sub.status === 'ACTIVE' || sub.status === 'TRIAL')) {
+            setActiveSub(sub);
+            setStep('active');
+            localStorage.setItem(
+              'brandx_pro_status',
+              JSON.stringify({
+                isPro: true,
+                plan: sub.planCode?.includes('year') || sub.plan?.code?.includes('year') ? 'yearly' : 'monthly',
+                expiresAt: sub.expiresAt || sub.expiryDate,
+                autoPayEnabled: sub.autoRenew ?? true,
+              })
+            );
+          } else {
+            setActiveSub(null);
+            setStep('plans');
+          }
+        })
+        .catch(() => {
+          setIsLoadingSub(false);
+          // Check cached status
+          try {
+            const cached = localStorage.getItem('brandx_pro_status');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (parsed.isPro) {
+                setActiveSub(parsed);
+                setStep('active');
+                return;
+              }
+            }
+          } catch {}
+          setStep('plans');
+        });
     }
   }, [isOpen]);
 
@@ -230,6 +270,109 @@ export const ProModal: React.FC<ProModalProps> = ({
           </button>
         </div>
 
+        {/* STEP 0: ACTIVE PRO SUBSCRIPTION VIEW */}
+        {step === 'active' && activeSub && (
+          <div className="overflow-y-auto px-4 pb-28 pt-2 flex flex-col animate-scale-in">
+            {/* Crown & Status Header */}
+            <div className="relative flex flex-col items-center text-center mt-3 mb-4">
+              <div className="relative flex items-center justify-center w-18 h-18 mb-2 rounded-2xl p-0.5 bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-400 text-white shadow-lg shadow-emerald-500/30">
+                <span className="material-symbols-outlined text-[38px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  workspace_premium
+                </span>
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black tracking-wide mb-1 shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                PRO ACTIVE
+              </div>
+
+              <h2 className="font-display font-extrabold text-2xl text-[#131b2e] tracking-tight">
+                {activeSub.planName || activeSub.plan?.name || (activeSub.planCode === 'pro_yearly' ? 'Pro Annual' : 'Pro Monthly')}
+              </h2>
+              <p className="text-xs text-[#464555] font-medium mt-0.5">
+                {activeSub.price
+                  ? `₹${activeSub.price.toLocaleString('en-IN')}${activeSub.billingCycle === 'ANNUAL' || activeSub.planCode === 'pro_yearly' ? '/year' : '/month'}`
+                  : (activeSub.planCode === 'pro_yearly' || activeSub.plan?.code === 'pro_yearly' ? '₹2,999/year' : '₹349/month')} • Active Subscription
+              </p>
+            </div>
+
+            {/* Active Subscription Details Card */}
+            <div className="bg-white rounded-2xl p-4 shadow-xs border border-emerald-100 mb-4 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 text-xs">
+                <span className="text-gray-500 font-medium">Subscription Status</span>
+                <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span> Active
+                </span>
+              </div>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 text-xs">
+                <span className="text-gray-500 font-medium">Valid Until</span>
+                <span className="font-bold text-gray-900">
+                  {activeSub.expiresAt || activeSub.expiryDate
+                    ? new Date(activeSub.expiresAt || activeSub.expiryDate).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : 'Active'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 text-xs">
+                <span className="text-gray-500 font-medium">AutoPay / Renewal</span>
+                <span className="font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                  {activeSub.autoRenew !== false ? 'Active (NPCI UPI Secured)' : 'Manual Renewal'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500 font-medium">Plan Identifier</span>
+                <span className="font-mono font-semibold text-gray-700 bg-gray-50 px-2 py-0.5 rounded border border-gray-200">
+                  {activeSub.planCode || activeSub.plan?.code || 'pro_yearly'}
+                </span>
+              </div>
+            </div>
+
+            {/* Unlocked Benefits */}
+            <div className="bg-white rounded-2xl p-3.5 shadow-xs border border-gray-100 mb-4">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100">
+                <span className="text-xs font-bold text-[#131b2e]">Unlocked Pro Benefits:</span>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
+                  UNLIMITED
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {[
+                  { title: 'Tax Invoice Generator (GST & Non-GST)', sub: 'Full billing history & instant WhatsApp PDF sharing' },
+                  { title: 'UPI QR Acrylic Standee Studio', sub: 'Custom shop branding & counter QR standees' },
+                  { title: '5,000+ Pro Festival & Business Posters', sub: 'Ultra HD watermark-free downloads' },
+                  { title: 'Customer Khata Book & Reminders', sub: 'Automated ledger balance calculation & SMS reminders' },
+                  { title: 'Dedicated Business Priority Support', sub: 'Priority assistance on WhatsApp' },
+                ].map((feat, idx) => (
+                  <div key={idx} className="flex items-start gap-2.5">
+                    <div className="w-4.5 h-4.5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-100">
+                      <span className="material-symbols-outlined text-[13px] font-bold">check</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#131b2e] leading-tight">{feat.title}</p>
+                      <p className="text-[10px] text-[#464555]">{feat.sub}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Switch Plan Option */}
+            <div className="text-center mt-1">
+              <button
+                type="button"
+                onClick={() => setStep('plans')}
+                className="text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
+              >
+                Change Plan or View Other Options →
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* STEP 1: PLANS SELECTION & VALUE PROPOSITION */}
         {step === 'plans' && (
           <div className="overflow-y-auto px-4 pb-28 pt-2 flex flex-col">
@@ -386,7 +529,7 @@ export const ProModal: React.FC<ProModalProps> = ({
                 }`}
               >
                 <div className="absolute -top-2.5 right-3 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                  🎉 BEST VALUE (SAVE ₹1,189)
+                  🎉 BEST VALUE (SAVE ₹1,189 • 28% OFF)
                 </div>
 
                 <div className="flex items-center justify-between mt-0.5">
@@ -405,7 +548,7 @@ export const ProModal: React.FC<ProModalProps> = ({
                           12 Months
                         </span>
                       </div>
-                      <p className="text-[10px] text-[#464555] mt-0.5">Effective ₹250/mo • Free Standee delivery</p>
+                      <p className="text-[10px] text-[#464555] mt-0.5">Effective ₹249.92/mo • Free Standee delivery</p>
                     </div>
                   </div>
 
@@ -473,8 +616,8 @@ export const ProModal: React.FC<ProModalProps> = ({
                 {selectedPlan === 'trial'
                   ? 'Aapke account se ₹1 debit hoga aur 7-day trial shuru hoga.'
                   : selectedPlan === 'monthly'
-                  ? 'Aapka ₹199 monthly subscription mandate setup kiya jaa raha hai.'
-                  : 'Aapka ₹3,499 yearly VIP subscription mandate setup kiya jaa raha hai.'}
+                  ? 'Aapka ₹349 monthly subscription mandate setup kiya jaa raha hai.'
+                  : 'Aapka ₹2,999 yearly VIP subscription mandate setup kiya jaa raha hai.'}
               </p>
             </div>
 
@@ -487,13 +630,13 @@ export const ProModal: React.FC<ProModalProps> = ({
               <div className="flex items-center justify-between pb-2 border-b border-gray-100 text-xs">
                 <span className="text-[#464555]">Initial Debit Amount:</span>
                 <span className="font-bold text-[#3525cd]">
-                  {selectedPlan === 'trial' ? '₹1.00 (Trial Charge)' : selectedPlan === 'monthly' ? '₹199.00' : '₹3,499.00'}
+                  {selectedPlan === 'trial' ? '₹1.00 (Trial Charge)' : selectedPlan === 'monthly' ? '₹349.00' : '₹2,999.00'}
                 </span>
               </div>
               <div className="flex items-center justify-between pb-2 border-b border-gray-100 text-xs">
                 <span className="text-[#464555]">Next Auto-Renewal:</span>
                 <span className="font-semibold text-gray-700">
-                  {selectedPlan === 'trial' ? 'After 7 Days (₹199/mo)' : selectedPlan === 'monthly' ? 'After 30 Days (₹199/mo)' : 'After 365 Days (₹3,499/yr)'}
+                  {selectedPlan === 'trial' ? 'After 7 Days (₹349/mo)' : selectedPlan === 'monthly' ? 'After 30 Days (₹349/mo)' : 'After 365 Days (₹2,999/yr)'}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -555,7 +698,16 @@ export const ProModal: React.FC<ProModalProps> = ({
         {/* Sticky Bottom CTA Section */}
         {step !== 'success' && (
           <div className="sticky bottom-0 z-20 px-4 pt-3 pb-safe bg-[#faf8ff]/95 backdrop-blur-md border-t border-gray-100 flex flex-col">
-            {step === 'plans' ? (
+            {step === 'active' ? (
+              <button
+                onClick={onClose}
+                className="w-full h-13 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 text-white font-bold text-sm cursor-pointer"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                <span>Continue Using BrandX Pro</span>
+              </button>
+            ) : step === 'plans' ? (
               <button
                 onClick={handleStartAutoPay}
                 className="w-full h-13 rounded-2xl bg-[#3525cd] hover:bg-[#281ca8] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30 text-white font-bold text-sm cursor-pointer"
@@ -566,8 +718,8 @@ export const ProModal: React.FC<ProModalProps> = ({
                   {selectedPlan === 'trial'
                     ? 'Start 7-Day Trial for ₹1 (UPI AutoPay) 🚀'
                     : selectedPlan === 'monthly'
-                    ? 'Subscribe Monthly @ ₹199/mo 🚀'
-                    : 'Subscribe Yearly @ ₹3,499/yr 🚀'}
+                    ? 'Subscribe Monthly @ ₹349/mo 🚀'
+                    : 'Subscribe Yearly @ ₹2,999/yr 🚀'}
                 </span>
               </button>
             ) : (
@@ -588,7 +740,7 @@ export const ProModal: React.FC<ProModalProps> = ({
                     <span>
                       {selectedPlan === 'trial'
                         ? 'Pay ₹1 & Activate 7-Day Access 🚀'
-                        : `Authorize ₹${selectedPlan === 'monthly' ? '199' : '3,499'} AutoPay 🚀`}
+                        : `Authorize ₹${selectedPlan === 'monthly' ? '349' : '2,999'} AutoPay 🚀`}
                     </span>
                   </>
                 )}
@@ -596,7 +748,9 @@ export const ProModal: React.FC<ProModalProps> = ({
             )}
 
             <p className="text-[10px] text-center text-[#464555] mt-2 mb-2 leading-tight">
-              {selectedPlan === 'trial'
+              {step === 'active'
+                ? 'Your Pro membership is fully active. All premium tools are unlocked.'
+                : selectedPlan === 'trial'
                 ? 'Trial valid for 7 days. Cancel anytime in Google Pay/PhonePe before renewal. No hidden charges.'
                 : '100% Encrypted & Authenticated by NPCI UPI AutoPay Guidelines.'}
             </p>

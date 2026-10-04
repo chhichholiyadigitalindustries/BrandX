@@ -5,13 +5,13 @@ export async function testPaymentAbstraction() {
 
   // Test 1: Order creation
   const order = await paymentProvider.createOrder({
-    amount: 199,
+    amount: 349,
     currency: 'INR',
     receipt: 'rcpt_test_01',
     notes: { plan: 'pro_monthly' },
   });
 
-  if (!order.orderId || order.amount !== 199) {
+  if (!order.orderId || order.amount !== 349) {
     throw new Error('Payment order creation failed');
   }
   console.log(`✅ Order created successfully: ${order.orderId} (₹${order.amount}).`);

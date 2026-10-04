@@ -18,6 +18,7 @@ router.get('/plans', subscriptionController.listPlans);
 // User-protected subscription endpoints
 router.get('/current', requireAuth, optionalBusinessAccess, subscriptionController.getCurrentSubscription);
 router.get('/my-subscription', requireAuth, optionalBusinessAccess, subscriptionController.getMySubscription);
+router.get('/status', requireAuth, optionalBusinessAccess, subscriptionController.getCurrentSubscription);
 
 // Payment checkout / order creation
 router.post(

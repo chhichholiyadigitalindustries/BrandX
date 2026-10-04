@@ -10,6 +10,7 @@ import { prisma } from '../config/database.js';
 import { auditRepository } from '../repositories/auditRepository.js';
 import { verifyFirebaseIdToken } from '../config/firebaseAdmin.js';
 import { referralService } from './referralService.js';
+import { subscriptionRepository } from '../repositories/subscriptionRepository.js';
 
 function hashRefreshToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -502,6 +503,28 @@ export class AuthService {
     });
 
     const businesses = await businessRepository.findByOwnerId(user.id);
+    const primaryBusiness = businesses[0] || null;
+
+    // Ensure user name is never empty if primary business has ownerName
+    if ((!user.name || !user.name.trim()) && primaryBusiness?.ownerName?.trim()) {
+      const canonicalName = primaryBusiness.ownerName.trim();
+      await (prisma.user as any).update({
+        where: { id: user.id },
+        data: { name: canonicalName },
+      });
+      user.name = canonicalName;
+    }
+
+    // Authoritative check for active Pro subscription
+    const activeSub = await subscriptionRepository.findActiveSubscription(primaryBusiness?.id, user.id);
+    const isPro = Boolean(activeSub || user.isPro);
+    if (activeSub && !user.isPro) {
+      await (prisma.user as any).update({
+        where: { id: user.id },
+        data: { isPro: true },
+      });
+      user.isPro = true;
+    }
 
     await auditRepository.log({
       actorId: user.id,
@@ -523,13 +546,27 @@ export class AuthService {
         name: user.name,
         mobile: user.mobile,
         email: user.email,
-        isPro: user.isPro,
+        isPro,
         phoneVerified: (user as any).phoneVerified ?? isPhoneVerified,
         emailVerified: (user as any).emailVerified ?? isEmailVerified,
         language: user.language,
         profileImage: user.profileImage,
       },
-      primaryBusiness: businesses[0] || null,
+      primaryBusiness,
+      subscription: activeSub
+        ? {
+            id: activeSub.id,
+            isPro: true,
+            status: activeSub.status,
+            planCode: activeSub.plan.code,
+            planName: activeSub.plan.name,
+            billingCycle: (activeSub.plan.billingInterval || activeSub.plan.billingCycle || 'MONTHLY').toUpperCase(),
+            price: activeSub.plan.price,
+            startDate: activeSub.startDate,
+            expiryDate: activeSub.expiryDate,
+            autoRenew: activeSub.autoRenew,
+          }
+        : null,
       tokens: {
         accessToken,
         refreshToken,

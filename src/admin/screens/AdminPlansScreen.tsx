@@ -277,7 +277,7 @@ export const AdminPlansScreen: React.FC = () => {
                   <label className="block text-xs font-bold text-gray-400 mb-1">Offer Price (₹ INR)</label>
                   <input
                     type="number"
-                    value={formData.price ?? 199}
+                    value={formData.price ?? 349}
                     onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
                     className="w-full h-10 px-3 rounded-xl bg-white/10 border border-white/15 text-xs text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
                     required

@@ -100,36 +100,6 @@ async function main() {
       status: 'active',
       isActive: true,
     },
-    {
-      name: 'Business Super',
-      code: 'business',
-      price: 3999,
-      originalPrice: 5999,
-      currency: 'INR',
-      billingCycle: 'yearly',
-      billingInterval: 'yearly',
-      durationDays: 365,
-      tagline: 'For wholesale distributors & multi-store chains',
-      isPopular: false,
-      features: [
-        'Multi-user sub-account access (up to 5 staff)',
-        'Custom invoice formats with barcode generation',
-        'Bulk customer payment reminder broadcast',
-        'Dedicated account manager',
-      ],
-      limits: {
-        invoices: 'unlimited',
-        posters: 'unlimited',
-        aiCredits: 5000,
-        digitalDukaan: true,
-        removeWatermark: true,
-        customBranding: true,
-        prioritySupport: true,
-        nfcSmartCard: true,
-      },
-      status: 'active',
-      isActive: true,
-    },
   ];
 
   for (const p of plansData) {
@@ -139,6 +109,19 @@ async function main() {
       create: p,
     });
   }
+
+  // Deactivate non-canonical plans
+  const canonicalCodes = plansData.map((p) => p.code);
+  await prisma.subscriptionPlan.updateMany({
+    where: {
+      code: { notIn: canonicalCodes },
+      isActive: true,
+    },
+    data: {
+      isActive: false,
+      status: 'inactive',
+    },
+  });
 
   const isProduction = process.env.NODE_ENV === 'production';
 

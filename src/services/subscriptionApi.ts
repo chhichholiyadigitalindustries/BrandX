@@ -4,6 +4,7 @@
  */
 
 import { authApi } from './authApi';
+import { getStandardHeaders } from './apiHelper';
 
 export interface PlanFeature {
   text: string;
@@ -26,6 +27,13 @@ export interface SubscriptionPlanDTO {
 export interface CurrentSubscriptionDTO {
   isPro: boolean;
   status: string;
+  planCode?: string;
+  planName?: string;
+  billingCycle?: string;
+  price?: number;
+  startedAt?: string | null;
+  expiresAt?: string | null;
+  autoRenew?: boolean;
   plan?: {
     id?: string;
     code: string;
@@ -84,35 +92,7 @@ class SubscriptionApiService {
   }
 
   private async getHeaders(): Promise<HeadersInit> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Authenticate through existing BrandX architecture:
-    // Firebase Auth -> Firebase ID Token -> POST /api/v1/auth/firebase -> BrandX Backend JWT
-    const token = await authApi.ensureValidToken();
-    const hasJwt = Boolean(token);
-
-    // Allowed development debug:
-    console.info(`[SubscriptionAuth] JWT present: ${hasJwt}`);
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-      console.info('[SubscriptionAuth] Authorization header attached: true');
-    } else {
-      console.info('[SubscriptionAuth] Authorization header attached: false');
-    }
-
-    const storedBusiness = localStorage.getItem('brandx_selected_business');
-    if (storedBusiness) {
-      try {
-        const parsed = JSON.parse(storedBusiness);
-        if (parsed?.id) headers['x-business-id'] = parsed.id;
-      } catch {
-        // ignore
-      }
-    }
-    return headers;
+    return getStandardHeaders();
   }
 
   /**

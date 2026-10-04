@@ -5,10 +5,10 @@
  * overwriting, or breaking any customer, subscription, or payment records.
  *
  * Pricing:
- * - Pro Monthly: ₹349 / month (30 days)
- * - Pro Yearly:  ₹2,999 / year (365 days)
- * - Free Forever: ₹0
- * - Business Super: ₹3,999 / year (365 days)
+ * - Free Forever: ₹0 (3650 days)
+ * - Pro Monthly:  ₹349 / month (30 days)
+ * - Pro Yearly:   ₹2,999 / year (365 days)
+ * Note: BrandX has ONLY Free, Pro Monthly, and Pro Yearly. No Business plan exists.
  */
 
 import { prisma } from '../config/database.js';
@@ -124,36 +124,6 @@ export const CANONICAL_PRODUCTION_PLANS: CanonicalPlanDefinition[] = [
       nfcSmartCard: true,
     },
   },
-  {
-    name: 'Business Super',
-    code: 'business',
-    price: 3999,
-    originalPrice: 5999,
-    currency: 'INR',
-    billingCycle: 'yearly',
-    billingInterval: 'yearly',
-    durationDays: 365,
-    tagline: 'For wholesale distributors & multi-store chains',
-    isPopular: false,
-    isActive: true,
-    status: 'active',
-    features: [
-      'Multi-user sub-account access (up to 5 staff)',
-      'Custom invoice formats with barcode generation',
-      'Bulk customer payment reminder broadcast',
-      'Dedicated account manager',
-    ],
-    limits: {
-      invoices: 'unlimited',
-      posters: 'unlimited',
-      aiCredits: 5000,
-      digitalDukaan: true,
-      removeWatermark: true,
-      customBranding: true,
-      prioritySupport: true,
-      nfcSmartCard: true,
-    },
-  },
 ];
 
 export async function seedProductionPlans() {
@@ -209,6 +179,22 @@ export async function seedProductionPlans() {
       });
       results.push({ action: 'CREATED', plan: created });
     }
+  }
+
+  // Safely deactivate any non-canonical or legacy plans (e.g. legacy business tier)
+  const canonicalCodes = CANONICAL_PRODUCTION_PLANS.map((p) => p.code);
+  const deactivated = await prisma.subscriptionPlan.updateMany({
+    where: {
+      code: { notIn: canonicalCodes },
+      isActive: true,
+    },
+    data: {
+      isActive: false,
+      status: 'inactive',
+    },
+  });
+  if (deactivated.count > 0) {
+    console.log(`🔒 Deactivated ${deactivated.count} non-canonical / legacy plan(s).`);
   }
 
   // Ensure ReferralConfig default exists if not present

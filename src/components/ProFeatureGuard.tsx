@@ -92,7 +92,7 @@ export const ProFeatureGuard: React.FC<ProFeatureGuardProps> = ({
         </button>
 
         <p className="text-[11px] text-gray-400 mt-3">
-          {isHindi ? 'शुरू करें मात्र ₹199/महीने से • कभी भी रद्द करें' : 'Starting at ₹199/mo • Cancel anytime'}
+          {isHindi ? 'शुरू करें मात्र ₹349/महीने से • कभी भी रद्द करें' : 'Starting at ₹349/mo • Cancel anytime'}
         </p>
       </div>
     </div>

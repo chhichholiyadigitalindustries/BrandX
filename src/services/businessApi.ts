@@ -4,6 +4,7 @@
  */
 
 import { authApi } from './authApi';
+import { getStandardHeaders, setActiveBusinessId } from './apiHelper';
 import { BusinessProfile } from '../types';
 
 export interface BackendBusinessSettings {
@@ -73,16 +74,7 @@ class BusinessApiService {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
-    const token = (await authApi.ensureValidToken()) || authApi.getAccessToken();
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    const headers = await getStandardHeaders(options.headers as Record<string, string>);
 
     try {
       const response = await fetch(url, {
@@ -223,6 +215,9 @@ class BusinessApiService {
       };
 
       localStorage.setItem(BIZ_STORAGE_KEY, JSON.stringify(merged));
+      if (merged.id) {
+        setActiveBusinessId(merged.id);
+      }
     } catch (e) {
       console.error('[BrandX Business API] Error syncing local business profile:', e);
     }

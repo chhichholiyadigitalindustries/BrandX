@@ -15,6 +15,7 @@ import { runAdminTests } from './admin.test.js';
 import { runReferralWalletTests } from './referralWallet.test.js';
 import { runSecurityGradingTests } from './securityGrading.test.js';
 import { runKhataSharingTests } from './khataSharing.test.js';
+import { runPricingIntegrityTests } from './pricingIntegrity.test.js';
 
 async function runAll() {
   console.log('========================================================');
@@ -36,6 +37,7 @@ async function runAll() {
     await runAiIntegrationTests();
     await testPaymentAbstraction();
     await runSubscriptionPaymentTests();
+    await runPricingIntegrityTests();
     await runAdminTests();
     await runReferralWalletTests();
     await runSecurityGradingTests();

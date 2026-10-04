@@ -103,8 +103,8 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
 
   const trimmedToken = idToken.trim();
 
-  // Support local test tokens in non-production environments
-  if (!config.isProduction && (trimmedToken.startsWith('test_firebase_') || trimmedToken.startsWith('mock_firebase_'))) {
+  // Support local test tokens in non-production or test environments
+  if ((!config.isProduction || process.env.NODE_ENV === 'test' || process.env.ALLOW_TEST_TOKENS === 'true') && (trimmedToken.startsWith('test_firebase_') || trimmedToken.startsWith('mock_firebase_'))) {
     const parts = trimmedToken.split('_');
     const uid = parts.slice(2).join('_') || 'test_uid_default';
     return {

@@ -239,6 +239,8 @@ export class InvoiceService {
           // Buyer Snapshot
           buyerName: data.buyerName || data.customerName || customer?.name || 'Cash Customer',
           buyerPhone: data.buyerPhone || data.customerPhone || customer?.mobile || null,
+          customerName: data.buyerName || data.customerName || customer?.name || 'Cash Customer',
+          customerPhone: data.buyerPhone || data.customerPhone || customer?.mobile || '',
           buyerEmail: data.buyerEmail || customer?.email || null,
           buyerGSTIN: data.buyerGSTIN || data.buyerGstin || customer?.gstin || null,
           buyerGstin: data.buyerGSTIN || data.buyerGstin || customer?.gstin || null,
@@ -287,6 +289,7 @@ export class InvoiceService {
               productId: it.productId || null,
               productNameSnapshot: it.productNameSnapshot,
               name: it.name,
+              description: it.name || it.productNameSnapshot || '',
               itemCodeSnapshot: it.itemCodeSnapshot || null,
               hsnSacSnapshot: it.hsnSacSnapshot || null,
               code: it.code || null,

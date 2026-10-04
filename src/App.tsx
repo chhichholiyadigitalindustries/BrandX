@@ -11,6 +11,7 @@ import { authApi } from './services/authApi';
 import { firebaseAuthService } from './services/firebaseAuthService';
 import { businessApi, customerKhataApi, productApi } from './services/api';
 import { subscriptionApi } from './services/subscriptionApi';
+import { setActiveBusinessId } from './services/apiHelper';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { Header } from './components/Header';
@@ -40,7 +41,11 @@ import { WalletScreen } from './screens/WalletScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { AdminApp } from './admin/AdminApp';
 
+export type AuthStage = 'AUTH_LOADING' | 'AUTHENTICATED_HYDRATING' | 'AUTHENTICATED_READY' | 'UNAUTHENTICATED';
+
 export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
+  const [authStage, setAuthStage] = useState<AuthStage>('AUTH_LOADING');
+
   // Start directly on Auth / Login screen if not authenticated
   const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
     return authApi.isAuthenticated() ? 'templates' : 'auth';
@@ -105,60 +110,62 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
     return false;
   });
 
-  // Auto-migrate local data to IndexedDB & restore BrandX session via Firebase/JWT token exchange
-  useEffect(() => {
-    migrateFromLocalStorage();
+  const hydrateAuthenticatedData = async (isNewUser = false, initialPayload?: AuthSuccessPayload) => {
+    try {
+      // 1. Fetch businesses from PostgreSQL
+      const res = await businessApi.listBusinesses();
+      let primaryBiz = res.success && res.data && res.data.length > 0 ? res.data[0] : null;
 
-    const loadAuthenticatedData = async () => {
-      // Ensure BrandX JWT is present & unexpired, or exchange from Firebase user session
-      const token = await authApi.ensureValidToken();
-      if (!token) return;
+      if (primaryBiz) {
+        setActiveBusinessId(primaryBiz.id);
+        businessApi.syncLocalProfile(primaryBiz);
+        setBusiness((prev) => ({
+          ...prev,
+          id: primaryBiz.id,
+          name: primaryBiz.name || primaryBiz.businessName || prev.name,
+          ownerName: primaryBiz.ownerName || prev.ownerName,
+          category: primaryBiz.category || primaryBiz.businessType || prev.category,
+          phone: primaryBiz.mobile || primaryBiz.phone || prev.phone,
+          email: primaryBiz.email || prev.email,
+          address: primaryBiz.address || prev.address,
+          city: primaryBiz.city || prev.city,
+          state: primaryBiz.state || prev.state,
+          pincode: primaryBiz.pincode || prev.pincode,
+          gstin: primaryBiz.gstin || prev.gstin,
+          pan: primaryBiz.pan || prev.pan,
+          upiId: primaryBiz.upiId || prev.upiId,
+          logoUrl: primaryBiz.logoUrl || primaryBiz.logo || prev.logoUrl,
+        }));
+      } else if (initialPayload?.primaryBusiness) {
+        primaryBiz = initialPayload.primaryBusiness;
+        setActiveBusinessId(primaryBiz.id);
+      }
 
-      // If user was on auth screen but has valid session, transition to home/templates
-      setCurrentScreen((prev) => (prev === 'auth' || prev === 'login' ? 'templates' : prev));
-
-      // Fetch authenticated tenant data from PostgreSQL
+      // 2. Fetch Khata customers
       try {
-        const res = await businessApi.listBusinesses();
-        if (res.success && res.data && res.data.length > 0) {
-          const biz = res.data[0];
-          businessApi.syncLocalProfile(biz);
-          setBusiness((prev) => ({
-            ...prev,
-            id: biz.id,
-            name: biz.name || biz.businessName || prev.name,
-            ownerName: biz.ownerName || prev.ownerName,
-            category: biz.category || biz.businessType || prev.category,
-            phone: biz.mobile || biz.phone || prev.phone,
-            email: biz.email || prev.email,
-            address: biz.address || prev.address,
-            city: biz.city || prev.city,
-            state: biz.state || prev.state,
-            pincode: biz.pincode || prev.pincode,
-            gstin: biz.gstin || prev.gstin,
-            pan: biz.pan || prev.pan,
-            upiId: biz.upiId || prev.upiId,
-            logoUrl: biz.logoUrl || biz.logo || prev.logoUrl,
-          }));
-        }
-      } catch {}
-
-      try {
-        const res = await customerKhataApi.listCustomers();
-        if (res.success && res.data && Array.isArray(res.data)) {
-          const mapped = res.data.map((c) => customerKhataApi.backendToFrontendCustomer(c));
+        const khataRes = await customerKhataApi.listCustomers();
+        if (khataRes.success && Array.isArray(khataRes.data)) {
+          const mapped = khataRes.data.map((c) => customerKhataApi.backendToFrontendCustomer(c));
           setCustomers(mapped);
+          dbBulkPut(STORES.CUSTOMERS, mapped);
         }
-      } catch {}
+      } catch (kErr) {
+        console.warn('[Hydration] Khata fetch warning:', kErr);
+      }
 
+      // 3. Fetch products
       try {
-        const res = await productApi.listProducts({ limit: 100 });
-        if (res.success && res.data && Array.isArray(res.data)) {
-          const mapped = res.data.map((p) => productApi.backendToStoreProduct(p));
+        const prodRes = await productApi.listProducts({ limit: 100 });
+        if (prodRes.success && Array.isArray(prodRes.data)) {
+          const mapped = prodRes.data.map((p) => productApi.backendToStoreProduct(p));
           setProducts(mapped);
+          dbBulkPut(STORES.PRODUCTS, mapped);
         }
-      } catch {}
+      } catch (pErr) {
+        console.warn('[Hydration] Product fetch warning:', pErr);
+      }
 
+      // 4. Fetch subscription status
       try {
         const sub = await subscriptionApi.getCurrentSubscription();
         setIsProUser(sub.isPro);
@@ -167,18 +174,61 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
             'brandx_pro_status',
             JSON.stringify({
               isPro: true,
-              plan: sub.plan?.code?.includes('year') ? 'yearly' : 'monthly',
-              expiresAt: sub.expiryDate,
-              autoPayEnabled: true,
+              plan: sub.planCode?.includes('year') || sub.plan?.code?.includes('year') ? 'yearly' : 'monthly',
+              expiresAt: sub.expiresAt || sub.expiryDate,
+              autoPayEnabled: sub.autoRenew ?? true,
             })
           );
         } else {
           localStorage.removeItem('brandx_pro_status');
         }
-      } catch {}
+      } catch (sErr) {
+        console.warn('[Hydration] Subscription fetch warning:', sErr);
+      }
+
+      // Route decision:
+      const hasExistingShop =
+        primaryBiz &&
+        primaryBiz.name &&
+        primaryBiz.name.trim() !== '' &&
+        primaryBiz.name !== 'BrandX Demo Store';
+
+      if (hasExistingShop && !isNewUser) {
+        setCurrentScreen('templates');
+      } else if (isNewUser || !hasExistingShop) {
+        setCurrentScreen('onboarding');
+      } else {
+        setCurrentScreen('templates');
+      }
+    } catch (err) {
+      console.error('[Hydration] Error during authenticated bootstrap:', err);
+    }
+  };
+
+  // Auto-migrate local data to IndexedDB & restore BrandX session via Firebase/JWT token exchange
+  useEffect(() => {
+    migrateFromLocalStorage();
+
+    const bootstrap = async () => {
+      try {
+        const token = await authApi.ensureValidToken();
+        if (!token) {
+          setAuthStage('UNAUTHENTICATED');
+          setCurrentScreen('auth');
+          return;
+        }
+
+        setAuthStage('AUTHENTICATED_HYDRATING');
+        await hydrateAuthenticatedData(false);
+        setAuthStage('AUTHENTICATED_READY');
+      } catch (e) {
+        console.error('[Bootstrap] Session restore failed:', e);
+        setAuthStage('UNAUTHENTICATED');
+        setCurrentScreen('auth');
+      }
     };
 
-    loadAuthenticatedData();
+    bootstrap();
   }, []);
 
   const handleLogout = async () => {
@@ -209,42 +259,48 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
       keysToRemove.forEach((k) => localStorage.removeItem(k));
       window.dispatchEvent(new CustomEvent('brandx:subscription-updated', { detail: { isPro: false } }));
     } catch {}
+    setAuthStage('UNAUTHENTICATED');
     setCurrentScreen('auth');
   };
 
-  // Sync to LocalStorage & IndexedDB
+  // Sync to LocalStorage & IndexedDB (ONLY when authenticated and fully hydrated)
   useEffect(() => {
+    if (authStage !== 'AUTHENTICATED_READY') return;
     try {
       localStorage.setItem('brandx_business_profile', JSON.stringify(business));
     } catch {}
-  }, [business]);
+  }, [business, authStage]);
 
   useEffect(() => {
+    if (authStage !== 'AUTHENTICATED_READY') return;
     try {
       localStorage.setItem('brandx_current_invoice', JSON.stringify(invoice));
     } catch {}
-  }, [invoice]);
+  }, [invoice, authStage]);
 
   useEffect(() => {
+    if (authStage !== 'AUTHENTICATED_READY') return;
     try {
       localStorage.setItem('brandx_khata_customers', JSON.stringify(customers));
       dbBulkPut(STORES.CUSTOMERS, customers);
     } catch {}
-  }, [customers]);
+  }, [customers, authStage]);
 
   useEffect(() => {
+    if (authStage !== 'AUTHENTICATED_READY') return;
     try {
       localStorage.setItem('brandx_store_products', JSON.stringify(products));
       dbBulkPut(STORES.PRODUCTS, products);
     } catch {}
-  }, [products]);
+  }, [products, authStage]);
 
   useEffect(() => {
+    if (authStage !== 'AUTHENTICATED_READY') return;
     try {
       localStorage.setItem('brandx_expenses', JSON.stringify(expenses));
       dbBulkPut(STORES.EXPENSES, expenses);
     } catch {}
-  }, [expenses]);
+  }, [expenses, authStage]);
 
   const [isProModalOpen, setIsProModalOpen] = useState(false);
   const [isPlayStoreModalOpen, setIsPlayStoreModalOpen] = useState(false);
@@ -254,7 +310,8 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
   const [editorBody, setEditorBody] = useState<string>('');
 
   // Handle successful Google or Mobile OTP Authentication
-  const handleAuthSuccess = (payload: AuthSuccessPayload) => {
+  const handleAuthSuccess = async (payload: AuthSuccessPayload) => {
+    setAuthStage('AUTHENTICATED_HYDRATING');
     setBusiness((prev) => ({
       ...prev,
       ownerName: payload.ownerName || prev.ownerName,
@@ -266,68 +323,12 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
       logoUrl: payload.avatarUrl || prev.logoUrl,
     }));
 
-    // Step 2: Open profile setup page so business can verify shop & bank details
-    setCurrentScreen('onboarding');
+    if (payload.primaryBusiness?.id) {
+      setActiveBusinessId(payload.primaryBusiness.id);
+    }
 
-    // Step 3: Refresh Pro status from server
-    subscriptionApi.getCurrentSubscription()
-      .then((sub) => {
-        setIsProUser(sub.isPro);
-        if (sub.isPro) {
-          localStorage.setItem('brandx_pro_status', JSON.stringify({
-            isPro: true,
-            plan: sub.plan?.code?.includes('year') ? 'yearly' : 'monthly',
-            expiresAt: sub.expiryDate,
-            autoPayEnabled: true,
-          }));
-        } else {
-          localStorage.removeItem('brandx_pro_status');
-        }
-      })
-      .catch(() => {});
-
-    // Step 4: Fetch fresh business, khata, and products from backend
-    businessApi.listBusinesses().then((res) => {
-      if (res.success && res.data && res.data.length > 0) {
-        const biz = res.data[0];
-        businessApi.syncLocalProfile(biz);
-        setBusiness((prev) => ({
-          ...prev,
-          id: biz.id,
-          name: biz.name || biz.businessName || prev.name,
-          ownerName: biz.ownerName || prev.ownerName,
-          category: biz.category || biz.businessType || prev.category,
-          phone: biz.mobile || biz.phone || prev.phone,
-          email: biz.email || prev.email,
-          address: biz.address || prev.address,
-          city: biz.city || prev.city,
-          state: biz.state || prev.state,
-          pincode: biz.pincode || prev.pincode,
-          gstin: biz.gstin || prev.gstin,
-          pan: biz.pan || prev.pan,
-          upiId: biz.upiId || prev.upiId,
-          logoUrl: biz.logoUrl || biz.logo || prev.logoUrl,
-        }));
-      }
-    }).catch(() => {});
-
-    customerKhataApi.listCustomers().then((res) => {
-      if (res.success && res.data && Array.isArray(res.data)) {
-        const mapped = res.data.map((c) => customerKhataApi.backendToFrontendCustomer(c));
-        setCustomers(mapped);
-      } else {
-        setCustomers([]);
-      }
-    }).catch(() => { setCustomers([]); });
-
-    productApi.listProducts({ limit: 100 }).then((res) => {
-      if (res.success && res.data && Array.isArray(res.data)) {
-        const mapped = res.data.map((p) => productApi.backendToStoreProduct(p));
-        setProducts(mapped);
-      } else {
-        setProducts([]);
-      }
-    }).catch(() => { setProducts([]); });
+    await hydrateAuthenticatedData(payload.isNewUser, payload);
+    setAuthStage('AUTHENTICATED_READY');
   };
 
   // Handle template selection from Template Library
@@ -408,26 +409,42 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
 
       {/* Active Screen Rendering */}
       <main className="flex-1 flex flex-col pt-16">
-        {/* 1. Auth Screen (Initial Landing Screen) */}
-        {(currentScreen === 'auth' || currentScreen === 'login') && (
-          <AuthScreen
-            onAuthSuccess={handleAuthSuccess}
-            currentBusiness={business}
-            initialMode="signin"
-            onOpenAdmin={onOpenAdmin}
-          />
+        {/* 0. Cloud Data Hydration Loading State */}
+        {authStage === 'AUTHENTICATED_HYDRATING' && (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-[60vh] animate-fade-in">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-0.5 shadow-2xl shadow-blue-500/30 mb-4 animate-pulse">
+              <img src="/brandx-logo.png" alt="BrandX" className="w-full h-full object-contain rounded-[14px] bg-[#0B0F19]" />
+            </div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-200">
+              <span className="material-symbols-outlined animate-spin text-blue-500 text-lg">progress_activity</span>
+              <span>Syncing your business data from cloud...</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">Loading Khata, Invoices, and Pro details securely</p>
+          </div>
         )}
 
-        {/* 2. Onboarding / Business Profile KYC (Step 2 in Flow) */}
-        {currentScreen === 'onboarding' && (
-          <OnboardingScreen
-            business={business}
-            onSaveBusiness={setBusiness}
-            onContinue={() => setCurrentScreen('templates')}
-            onOpenPrivacyPolicy={() => setIsPrivacyPolicyOpen(true)}
-            onOpenPlayStore={() => setIsPlayStoreModalOpen(true)}
-          />
-        )}
+        {authStage !== 'AUTHENTICATED_HYDRATING' && (
+          <>
+            {/* 1. Auth Screen (Initial Landing Screen) */}
+            {(currentScreen === 'auth' || currentScreen === 'login') && (
+              <AuthScreen
+                onAuthSuccess={handleAuthSuccess}
+                currentBusiness={business}
+                initialMode="signin"
+                onOpenAdmin={onOpenAdmin}
+              />
+            )}
+
+            {/* 2. Onboarding / Business Profile KYC (Step 2 in Flow) */}
+            {currentScreen === 'onboarding' && (
+              <OnboardingScreen
+                business={business}
+                onSaveBusiness={setBusiness}
+                onContinue={() => setCurrentScreen('templates')}
+                onOpenPrivacyPolicy={() => setIsPrivacyPolicyOpen(true)}
+                onOpenPlayStore={() => setIsPlayStoreModalOpen(true)}
+              />
+            )}
 
         {/* 3. Home: Poster & Banner Templates Studio (Step 3 in Flow) */}
         {currentScreen === 'templates' && (
@@ -556,16 +573,18 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
           </div>
         )}
 
-        {/* 13. Settings, Security, Privacy & Legal Center */}
-        {currentScreen === 'settings' && (
-          <SettingsScreen
-            business={business}
-            onUpdateBusiness={setBusiness}
-            isPro={isProUser}
-            onOpenPro={() => setIsProModalOpen(true)}
-            onNavigate={(screen) => setCurrentScreen(screen)}
-            onLogout={handleLogout}
-          />
+            {/* 13. Settings, Security, Privacy & Legal Center */}
+            {currentScreen === 'settings' && (
+              <SettingsScreen
+                business={business}
+                onUpdateBusiness={setBusiness}
+                isPro={isProUser}
+                onOpenPro={() => setIsProModalOpen(true)}
+                onNavigate={(screen) => setCurrentScreen(screen)}
+                onLogout={handleLogout}
+              />
+            )}
+          </>
         )}
       </main>
 

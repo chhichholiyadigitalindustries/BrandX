@@ -44,6 +44,7 @@ export interface AuthResponseData {
   primaryBusiness?: BackendBusiness | null;
   tokens: AuthTokens;
   isNewUser?: boolean;
+  subscription?: any | null;
 }
 
 export interface RegisterPayload {

@@ -11,6 +11,9 @@ router.use(requireAuth);
 router.use(requireBusinessAccess);
 
 router.post('/transactions', validateBody(createKhataTxSchema), khataController.addTransaction);
+router.get('/customers/:customerId/transactions', khataController.listTransactions);
+router.get('/customers/:customerId/summary', khataController.getCustomerSummary);
+router.get('/customers/:customerId/khata-summary', khataController.getCustomerSummary);
 router.get('/customers/:customerId/statement', khataController.getCustomerStatement);
 router.get('/summary', khataController.getSummary);
 router.post('/reminders', validateBody(createPaymentReminderSchema), khataController.createReminder);

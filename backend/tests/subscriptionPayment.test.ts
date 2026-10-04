@@ -53,7 +53,7 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
           name: 'Pro Monthly',
           code: 'pro_monthly',
           description: 'Full business acceleration for busy shopkeepers',
-          price: 199,
+          price: 349,
           currency: 'INR',
           billingCycle: 'monthly',
           billingInterval: 'MONTHLY',
@@ -71,7 +71,7 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
           name: 'Pro Yearly',
           code: 'pro_yearly',
           description: 'Maximum savings + physical NFC Review Standee',
-          price: 1499,
+          price: 2999,
           currency: 'INR',
           billingCycle: 'yearly',
           billingInterval: 'YEARLY',
@@ -550,11 +550,11 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
     const proMonthly = plans.find((p) => p.code.toLowerCase() === 'pro_monthly');
     const proYearly = plans.find((p) => p.code.toLowerCase() === 'pro_yearly');
 
-    if (!proMonthly || proMonthly.price !== 199) {
-      throw new Error(`Expected pro_monthly plan priced at ₹199, found: ${JSON.stringify(proMonthly)}`);
+    if (!proMonthly || proMonthly.price !== 349) {
+      throw new Error(`Expected pro_monthly plan priced at ₹349, found: ${JSON.stringify(proMonthly)}`);
     }
-    if (!proYearly || proYearly.price !== 1499) {
-      throw new Error(`Expected pro_yearly plan priced at ₹1499, found: ${JSON.stringify(proYearly)}`);
+    if (!proYearly || proYearly.price !== 2999) {
+      throw new Error(`Expected pro_yearly plan priced at ₹2999, found: ${JSON.stringify(proYearly)}`);
     }
 
     // Zero secret leakage check
@@ -578,7 +578,7 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
     if (!orderResult.orderId || !orderResult.orderId.startsWith('order_')) {
       throw new Error(`Invalid order ID returned: ${orderResult.orderId}`);
     }
-    if (orderResult.amount !== 19900 && orderResult.amount !== 199) {
+    if (orderResult.amount !== 34900 && orderResult.amount !== 349) {
       throw new Error(`Invalid order amount: ${orderResult.amount}`);
     }
     if (orderResult.currency !== 'INR') {
@@ -776,7 +776,7 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
         userId: testUser.id,
         businessId: testBusiness.id,
         paymentId: `pending_${webhookOrderId}`,
-        amount: 199,
+        amount: 349,
         currency: 'INR',
         gateway: PaymentGateway.RAZORPAY,
         orderId: webhookOrderId,
@@ -794,7 +794,7 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
           entity: {
             id: webhookPaymentId,
             order_id: webhookOrderId,
-            amount: 19900,
+            amount: 34900,
             status: 'captured',
             currency: 'INR',
           },
@@ -967,7 +967,7 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
 
     const refundResult = await adminService.processRefund({
       transactionId: txRecord.id,
-      amount: 199,
+      amount: 349,
       reason: 'Quality issue refund test',
       adminId: 'admin_test',
     });
@@ -979,10 +979,10 @@ export async function runSubscriptionPaymentTests(): Promise<void> {
     const recordedRefund = await prisma.refundRecord.findFirst({
       where: { transactionId: txRecord.id },
     });
-    if (!recordedRefund || recordedRefund.amount !== 199) {
+    if (!recordedRefund || recordedRefund.amount !== 349) {
       throw new Error('RefundRecord was not accurately logged in database');
     }
-    console.log(`  ✅ Refund of ₹199 processed. Transaction status: ${refundResult.transactionStatus}.`);
+    console.log(`  ✅ Refund of ₹349 processed. Transaction status: ${refundResult.transactionStatus}.`);
 
     // -------------------------------------------------------------------------
     // Scenario 18: Admin RBAC protection

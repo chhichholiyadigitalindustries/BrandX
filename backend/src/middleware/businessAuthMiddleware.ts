@@ -20,6 +20,7 @@ export async function requireBusinessAccess(req: Request, res: Response, next: N
     // If no explicit businessId is provided, try to find user's primary/first business
     const firstBusiness = await prisma.business.findFirst({
       where: { ownerId: user.id, status: 'ACTIVE' },
+      orderBy: { createdAt: 'asc' },
       select: { id: true },
     });
 

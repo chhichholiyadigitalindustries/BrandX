@@ -290,7 +290,7 @@ export const SubscriptionSection: React.FC<SubscriptionSectionProps> = ({
               </li>
               <li className="flex items-center gap-2">
                 <span className="text-amber-400 font-bold">✓</span>
-                <span>₹249/mo effective annual rate</span>
+                <span>₹249.92/mo effective annual rate</span>
               </li>
             </ul>
           </div>

@@ -18,7 +18,7 @@ export const AdminHeader: React.FC = () => {
     revenue: { title: 'Revenue & P&L Dashboard', subtitle: 'Pro subscription recurring revenue, gross/net earnings & growth trends' },
     subscribers: { title: 'Pro Subscribers Directory', subtitle: 'Active Pro members, renewals, plan pricing & expiry schedules' },
     payments: { title: 'Transactions Ledger', subtitle: 'Live payment audit trail across Razorpay, Cashfree & UPI gateways' },
-    plans: { title: 'Subscription Plans & Tiers', subtitle: 'Configure Free, Pro Monthly, Pro Annual & Business Super packages' },
+    plans: { title: 'Subscription Plans & Tiers', subtitle: 'Configure Free, Pro Monthly & Pro Annual packages' },
     refunds: { title: 'Refund Requests & Disputes', subtitle: 'Track and manage user refund authorizations and turnaround' },
     users: { title: 'User Directory', subtitle: 'Manage registered Indian business owners and KYC status' },
     businesses: { title: 'Business Profiles & GSTIN', subtitle: 'Verified vyapari shops, categories & state distribution' },

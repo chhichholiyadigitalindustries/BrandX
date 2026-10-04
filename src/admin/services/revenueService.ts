@@ -55,8 +55,8 @@ class RevenueService {
           monthlyRevenueBreakdown: [],
           dailyRevenueBreakdown: [],
           revenueByPlan: [
-            { planName: 'Monthly Pro', count: d.monthlySubscribers || 0, revenue: (d.monthlySubscribers || 0) * 199, percentage: 50 },
-            { planName: 'Yearly Pro', count: d.yearlySubscribers || 0, revenue: (d.yearlySubscribers || 0) * 1499, percentage: 50 },
+            { planName: 'Monthly Pro', count: d.monthlySubscribers || 0, revenue: (d.monthlySubscribers || 0) * 349, percentage: 50 },
+            { planName: 'Yearly Pro', count: d.yearlySubscribers || 0, revenue: (d.yearlySubscribers || 0) * 2999, percentage: 50 },
           ],
           revenueByGateway: [
             { gateway: 'Razorpay', count: d.totalCapturedTransactions || 0, volume: totalRev },

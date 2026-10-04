@@ -15,6 +15,8 @@ export interface AuthSuccessPayload {
   avatarUrl?: string;
   authMethod: 'google' | 'phone' | 'email' | 'firebase';
   isNewUser: boolean;
+  primaryBusiness?: any;
+  subscription?: any;
 }
 
 interface AuthScreenProps {
@@ -288,7 +290,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         setIsLoading(false);
         showToast(backendRes.data.isNewUser ? 'Account successfully registered in database! 🎉' : 'Login successful! Welcome back 🏪');
         onAuthSuccess({
-          ownerName: backendRes.data.user.name || resolvedName,
+          ownerName: backendRes.data.user.name || backendRes.data.primaryBusiness?.ownerName || resolvedName,
           phone: backendRes.data.user.mobile || validMobile,
           email: backendRes.data.user.email || (emailInput ? emailInput.trim().toLowerCase() : undefined),
           businessName: backendRes.data.primaryBusiness?.name || resolvedBusiness,
@@ -296,6 +298,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           avatarUrl: backendRes.data.user.profileImage || undefined,
           authMethod: authMethodTab === 'email' ? 'email' : 'phone',
           isNewUser: Boolean(backendRes.data.isNewUser),
+          primaryBusiness: backendRes.data.primaryBusiness,
+          subscription: backendRes.data.subscription,
         });
         return;
       } else {
@@ -404,7 +408,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           setIsLoading(false);
           showToast('Signed in successfully! 🏪');
           onAuthSuccess({
-            ownerName: backendRes.data.user.name || resolvedName,
+            ownerName: backendRes.data.user.name || backendRes.data.primaryBusiness?.ownerName || resolvedName,
             email: backendRes.data.user.email || cleanEmail,
             phone: backendRes.data.user.mobile || undefined,
             businessName: backendRes.data.primaryBusiness?.name || resolvedBusiness,
@@ -412,6 +416,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             avatarUrl: backendRes.data.user.profileImage || undefined,
             authMethod: 'email',
             isNewUser: false,
+            primaryBusiness: backendRes.data.primaryBusiness,
+            subscription: backendRes.data.subscription,
           });
           return;
         } else {

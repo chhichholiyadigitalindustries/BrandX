@@ -313,7 +313,7 @@ export const AdminUsersScreen: React.FC = () => {
               {selectedUser.isPro && (
                 <div className="pt-1 text-[11px] text-gray-300 bg-white/[0.02] p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
                   <span className="text-gray-400">Recent Payment ID: <code className="text-emerald-300 font-mono">pay_sep_2026_{selectedUser.id.substring(0, 4)}</code></span>
-                  <span className="text-emerald-400 font-bold">₹199 • Success (UPI)</span>
+                  <span className="text-emerald-400 font-bold">₹349 • Success (UPI)</span>
                 </div>
               )}
             </div>

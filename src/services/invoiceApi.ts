@@ -4,6 +4,7 @@
  */
 
 import { authApi } from './authApi';
+import { getStandardHeaders } from './apiHelper';
 
 export interface BackendInvoiceItem {
   id: string;
@@ -231,16 +232,7 @@ class InvoiceApiService {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
-    const token = (await authApi.ensureValidToken()) || authApi.getAccessToken();
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    const headers = await getStandardHeaders(options.headers as Record<string, string>);
 
     try {
       const response = await fetch(url, {

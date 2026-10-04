@@ -69,24 +69,6 @@ const DEFAULT_SYSTEM_PLANS: any[] = [
     limits: { invoices: -1, aiCredits: 2000 },
     status: 'active',
   },
-  {
-    id: 'plan_business_default',
-    name: 'Business Super',
-    code: 'business',
-    description: 'For wholesale distributors & multi-store chains',
-    price: 3999,
-    originalPrice: 5999,
-    currency: 'INR',
-    billingCycle: 'yearly',
-    billingInterval: 'yearly',
-    durationDays: 365,
-    tagline: 'For wholesale distributors & multi-store chains',
-    isPopular: false,
-    isActive: true,
-    features: ['Multi-user sub-account access', 'Custom invoice formats', 'Dedicated account manager'],
-    limits: { invoices: -1, aiCredits: 5000 },
-    status: 'active',
-  },
 ];
 
 export class SubscriptionRepository {

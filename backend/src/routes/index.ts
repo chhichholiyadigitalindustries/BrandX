@@ -72,6 +72,7 @@ router.use('/content', contentRoutes);
 router.use('/daily-content', contentRoutes);
 router.use('/ai', aiRoutes);
 router.use('/subscriptions', subscriptionRoutes);
+router.use('/subscription', subscriptionRoutes);
 router.use('/referrals', referralRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/admin', adminRoutes);

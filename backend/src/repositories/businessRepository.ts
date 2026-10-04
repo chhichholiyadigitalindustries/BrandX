@@ -13,7 +13,7 @@ export class BusinessRepository {
     return prisma.business.findMany({
       where: { ownerId },
       include: { settings: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
   }
 

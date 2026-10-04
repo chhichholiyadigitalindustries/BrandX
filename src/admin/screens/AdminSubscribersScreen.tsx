@@ -130,10 +130,9 @@ export const AdminSubscribersScreen: React.FC = () => {
             className="h-11 px-3 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
           >
             <option value="all">All Plans</option>
-            <option value="pro_monthly">Pro Monthly (₹199)</option>
-            <option value="pro_yearly">Pro Annual (₹1,499)</option>
-            <option value="business">Business Super (₹499)</option>
-            <option value="enterprise">Enterprise (₹4,999)</option>
+            <option value="free">Free Forever (₹0)</option>
+            <option value="pro_monthly">Pro Monthly (₹349)</option>
+            <option value="pro_yearly">Pro Annual (₹2,999)</option>
           </select>
 
           {/* Status Filter */}
