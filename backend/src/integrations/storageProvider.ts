@@ -2,17 +2,29 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { logger } from '../utils/logger.js';
+import { prisma } from '../config/database.js';
 
 export interface UploadOptions {
   fileName: string;
   buffer: Buffer;
   mimeType: string;
   folder?: string;
+  entityType?: string;
+  entityId?: string;
+}
+
+export interface MediaAssetResult {
+  url: string;
+  key: string;
+  id: string;
+  mimeType: string;
+  sizeBytes: number;
 }
 
 export interface StorageProvider {
-  uploadFile(options: UploadOptions): Promise<{ url: string; key: string }>;
-  deleteFile(key: string): Promise<boolean>;
+  uploadFile(options: UploadOptions): Promise<MediaAssetResult>;
+  deleteFile(keyOrId: string): Promise<boolean>;
+  getMediaAsset(keyOrId: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string; id: string; key: string } | null>;
 }
 
 // Canonical MIME type to safe extension map
@@ -65,7 +77,7 @@ export function getValidatedExtension(mimeType: string, rawFileName?: string): s
 export function generateSafeFileName(mimeType: string, rawFileName: string): string {
   const extension = getValidatedExtension(mimeType, rawFileName);
   const timestamp = Date.now();
-  const randomSuffix = crypto.randomBytes(4).toString('hex'); // 8 hex characters e.g. 'a8f3c91d'
+  const randomSuffix = crypto.randomBytes(4).toString('hex'); // 8 hex characters
   return `${timestamp}_${randomSuffix}.${extension}`;
 }
 
@@ -95,19 +107,36 @@ export class LocalStorageProvider implements StorageProvider {
     }
   }
 
-  public async uploadFile(options: UploadOptions): Promise<{ url: string; key: string }> {
-    // 1. Generate strictly sanitized, server-side filename (never uses user-provided basename)
+  public async uploadFile(options: UploadOptions): Promise<MediaAssetResult> {
+    const startTimestamp = Date.now();
+    logger.info(`[MEDIA_UPLOAD_START] Starting media upload: fileName="${options.fileName}", mimeType="${options.mimeType}", size=${options.buffer?.length}B, folder="${options.folder || 'general'}"`);
+
+    if (!options.buffer || options.buffer.length === 0) {
+      logger.error('[MEDIA_UPLOAD_FAILURE] File buffer is empty');
+      throw new Error('Image file buffer is empty');
+    }
+
+    if (options.buffer.length > 10 * 1024 * 1024) {
+      logger.error(`[MEDIA_UPLOAD_FAILURE] File size ${options.buffer.length} exceeds 10MB limit`);
+      throw new Error('Image file exceeds maximum allowed size of 10MB');
+    }
+
+    // 1. Generate strictly sanitized, server-side filename
     const safeName = generateSafeFileName(options.mimeType, options.fileName);
 
     // 2. Sanitize destination folder
     const cleanFolder = sanitizeFolder(options.folder);
 
-    // 3. Resolve destination directory and enforce storage-root containment
+    // 3. Key identification
+    const key = cleanFolder ? `${cleanFolder}/${safeName}` : safeName;
+
+    // 4. Resolve destination directory for local disk cache
     const targetFolder = cleanFolder ? path.join(this.uploadsDir, cleanFolder) : this.uploadsDir;
     const resolvedTarget = path.resolve(targetFolder);
     const resolvedRoot = path.resolve(this.uploadsDir);
 
     if (!resolvedTarget.startsWith(resolvedRoot)) {
+      logger.error('[MEDIA_UPLOAD_FAILURE] Directory escapes storage root');
       throw new Error('Security Error: Upload directory escapes storage root');
     }
 
@@ -115,48 +144,189 @@ export class LocalStorageProvider implements StorageProvider {
       fs.mkdirSync(resolvedTarget, { recursive: true });
     }
 
-    // 4. Resolve full file destination and verify containment
     const filePath = path.join(resolvedTarget, safeName);
     const resolvedFilePath = path.resolve(filePath);
 
     if (!resolvedFilePath.startsWith(resolvedTarget)) {
+      logger.error('[MEDIA_UPLOAD_FAILURE] File path escapes target directory');
       throw new Error('Security Error: Upload file path escapes target directory');
     }
 
-    await fs.promises.writeFile(resolvedFilePath, options.buffer);
+    // 5. Write to local disk cache (non-critical, cache-only)
+    try {
+      await fs.promises.writeFile(resolvedFilePath, options.buffer);
+    } catch (diskErr) {
+      logger.warn(`Failed to write local disk cache for ${key}:`, diskErr);
+    }
 
-    const key = cleanFolder ? `${cleanFolder}/${safeName}` : safeName;
-    const url = `/uploads/${key}`;
+    // 6. PERMANENT SOURCE OF TRUTH: Persist binary bytes into PostgreSQL MediaAsset table
+    let savedAsset: any;
+    try {
+      savedAsset = await prisma.mediaAsset.upsert({
+        where: { key },
+        create: {
+          key,
+          fileName: safeName,
+          mimeType: options.mimeType,
+          sizeBytes: options.buffer.length,
+          data: options.buffer,
+        },
+        update: {
+          fileName: safeName,
+          mimeType: options.mimeType,
+          sizeBytes: options.buffer.length,
+          data: options.buffer,
+        },
+      });
+      logger.info(`[MEDIA_UPLOAD_SUCCESS] File permanently persisted in PostgreSQL MediaAsset: id="${savedAsset.id}", key="${key}", sizeBytes=${options.buffer.length}, durationMs=${Date.now() - startTimestamp}`);
+    } catch (dbErr: any) {
+      logger.error(`[MEDIA_UPLOAD_FAILURE] Critical error saving MediaAsset into database for ${key}:`, dbErr);
+      throw new Error(`Permanent media storage failed: ${dbErr?.message || 'Database error'}`);
+    }
 
-    logger.info(`File uploaded locally: ${url}`);
-    return { url, key };
+    // Return the permanent, backend-routed API URL
+    const url = `/api/v1/media/${key}`;
+    return {
+      url,
+      key,
+      id: savedAsset.id,
+      mimeType: options.mimeType,
+      sizeBytes: options.buffer.length,
+    };
   }
 
-  public async deleteFile(key: string): Promise<boolean> {
+  public async getMediaAsset(keyOrId: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string; id: string; key: string } | null> {
+    if (!keyOrId || typeof keyOrId !== 'string') return null;
+
+    logger.debug(`[MEDIA_FETCH] Requested media: "${keyOrId}"`);
+
+    const cleanInput = keyOrId
+      .replace(/%2e/gi, '.')
+      .replace(/%2f/gi, '/')
+      .replace(/%5c/gi, '\\')
+      .replace(/\0/g, '')
+      .replace(/^\/+/, '')
+      .trim();
+
+    if (!cleanInput) return null;
+
+    // 1. Check local disk cache first if cleanInput matches file path
+    const filePath = path.join(this.uploadsDir, cleanInput.replace(/[/\\]+/g, path.sep));
+    const resolvedPath = path.resolve(filePath);
+    const resolvedRoot = path.resolve(this.uploadsDir);
+
+    if (resolvedPath.startsWith(resolvedRoot) && fs.existsSync(resolvedPath)) {
+      try {
+        const stats = await fs.promises.stat(resolvedPath);
+        if (stats.isFile()) {
+          const buffer = await fs.promises.readFile(resolvedPath);
+          const ext = path.extname(cleanInput).replace('.', '').toLowerCase();
+          let mimeType = 'image/png';
+          if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+          else if (ext === 'webp') mimeType = 'image/webp';
+          else if (ext === 'svg') mimeType = 'image/svg+xml';
+          else if (ext === 'gif') mimeType = 'image/gif';
+          else if (ext === 'pdf') mimeType = 'application/pdf';
+
+          return {
+            buffer,
+            mimeType,
+            fileName: path.basename(cleanInput),
+            id: cleanInput,
+            key: cleanInput.replace(/\\/g, '/'),
+          };
+        }
+      } catch (err) {
+        logger.warn(`Error reading disk cache for ${cleanInput}, falling back to PostgreSQL:`, err);
+      }
+    }
+
+    // 2. Query permanent PostgreSQL MediaAsset table (Source of Truth)
     try {
-      const cleanKey = key
+      const normalizedKey = cleanInput.replace(/\\/g, '/');
+
+      // Match by exact key, UUID id, endsWith key, or fileName
+      const asset = await prisma.mediaAsset.findFirst({
+        where: {
+          OR: [
+            { key: normalizedKey },
+            { id: normalizedKey },
+            { key: { endsWith: normalizedKey } },
+            { fileName: normalizedKey },
+            { key: `daily-content/${normalizedKey}` },
+            { key: `daily-status/${normalizedKey}` },
+            { key: `posters/${normalizedKey}` },
+            { key: `logos/${normalizedKey}` },
+            { key: `avatars/${normalizedKey}` },
+          ],
+        },
+      });
+
+      if (asset && asset.data) {
+        const buffer = Buffer.from(asset.data);
+        logger.info(`[MEDIA_FETCH_REHYDRATED] Rehydrated media from PostgreSQL: id="${asset.id}", key="${asset.key}", mimeType="${asset.mimeType}", size=${buffer.length}B`);
+
+        // Heal local disk cache asynchronously
+        const diskTarget = path.join(this.uploadsDir, asset.key.replace(/[/\\]+/g, path.sep));
+        const resolvedDiskTarget = path.resolve(diskTarget);
+        if (resolvedDiskTarget.startsWith(resolvedRoot)) {
+          const parentDir = path.dirname(resolvedDiskTarget);
+          fs.promises
+            .mkdir(parentDir, { recursive: true })
+            .then(() => fs.promises.writeFile(resolvedDiskTarget, buffer))
+            .catch(() => null);
+        }
+
+        return {
+          buffer,
+          mimeType: asset.mimeType,
+          fileName: asset.fileName,
+          id: asset.id,
+          key: asset.key,
+        };
+      }
+    } catch (dbErr) {
+      logger.error(`Error querying MediaAsset for ${cleanInput}:`, dbErr);
+    }
+
+    logger.warn(`[MEDIA_FETCH_NOT_FOUND] Media not found for identifier: "${cleanInput}"`);
+    return null;
+  }
+
+  public async deleteFile(keyOrId: string): Promise<boolean> {
+    try {
+      const cleanInput = keyOrId
         .replace(/%2e/gi, '.')
         .replace(/%2f/gi, '/')
         .replace(/%5c/gi, '\\')
         .replace(/\0/g, '')
-        .replace(/[/\\]+/g, path.sep);
+        .replace(/^\/+/, '')
+        .trim();
 
-      const filePath = path.join(this.uploadsDir, cleanKey);
+      const normalizedKey = cleanInput.replace(/\\/g, '/');
+
+      // Remove from disk cache
+      const filePath = path.join(this.uploadsDir, cleanInput.replace(/[/\\]+/g, path.sep));
       const resolvedPath = path.resolve(filePath);
       const resolvedRoot = path.resolve(this.uploadsDir);
 
-      if (!resolvedPath.startsWith(resolvedRoot)) {
-        logger.warn(`Security Warning: attempt to delete file outside storage root: ${key}`);
-        return false;
+      if (resolvedPath.startsWith(resolvedRoot) && fs.existsSync(resolvedPath)) {
+        await fs.promises.unlink(resolvedPath).catch(() => null);
       }
 
-      if (fs.existsSync(resolvedPath)) {
-        await fs.promises.unlink(resolvedPath);
-        return true;
-      }
-      return false;
+      // Remove from PostgreSQL
+      await prisma.mediaAsset.deleteMany({
+        where: {
+          OR: [
+            { key: normalizedKey },
+            { id: normalizedKey },
+          ],
+        },
+      }).catch(() => null);
+
+      return true;
     } catch (error) {
-      logger.error(`Error deleting local file ${key}:`, error);
+      logger.error(`Error deleting file ${keyOrId}:`, error);
       return false;
     }
   }

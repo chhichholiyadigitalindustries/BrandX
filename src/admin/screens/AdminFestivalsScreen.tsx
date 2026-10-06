@@ -81,7 +81,13 @@ export const AdminFestivalsScreen: React.FC = () => {
       </div>
 
       {isLoading ? (
-        <div className="py-16 text-center text-gray-400">Loading festivals...</div>
+        <div className="py-16 text-center text-gray-400">Loading festivals from database...</div>
+      ) : festivals.length === 0 ? (
+        <div className="py-16 text-center text-gray-400 bg-[#0E1424] border border-white/10 rounded-3xl p-8 shadow-xl">
+          <span className="material-symbols-outlined text-4xl text-gray-500 mb-2 block">celebration</span>
+          <p className="font-bold text-white text-sm">No festivals scheduled yet.</p>
+          <p className="text-xs text-gray-400 mt-1">Click "Add New Festival" above to add an upcoming cultural event.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {festivals.map((fest) => (

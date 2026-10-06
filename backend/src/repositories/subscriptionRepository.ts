@@ -628,9 +628,23 @@ export class SubscriptionRepository {
         prisma.subscription.findMany({
           where,
           include: {
-            user: { select: { id: true, name: true, mobile: true, email: true } },
+            user: { select: { id: true, name: true, mobile: true, email: true, createdAt: true } },
             business: { select: { id: true, name: true, city: true, state: true, gstin: true } },
             plan: true,
+            paymentTransactions: {
+              select: {
+                id: true,
+                paymentId: true,
+                orderId: true,
+                providerPaymentId: true,
+                amount: true,
+                status: true,
+                paymentMethod: true,
+                gateway: true,
+              },
+              take: 1,
+              orderBy: { createdAt: 'desc' },
+            },
           },
           skip,
           take: limit,

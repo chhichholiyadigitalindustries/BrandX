@@ -3,6 +3,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import QRCode from 'qrcode';
 import { DailyCalendarItem, BusinessProfile, KhataCustomer } from '../types';
+import { resolveImageUrl } from './imageUrl';
 
 /**
  * Detects whether a given business or shop name is a forbidden placeholder,
@@ -175,9 +176,10 @@ function drawRoundedRect(
  * Loads an image from a URL into an HTMLImageElement
  */
 function loadImage(src: string): Promise<HTMLImageElement> {
+  const resolved = resolveImageUrl(src);
   return new Promise((resolve, reject) => {
     const img = new Image();
-    if (!src.startsWith('data:')) {
+    if (!resolved.startsWith('data:')) {
       img.crossOrigin = 'anonymous';
     }
     img.onload = () => resolve(img);
@@ -185,9 +187,9 @@ function loadImage(src: string): Promise<HTMLImageElement> {
       const localImg = new Image();
       localImg.onload = () => resolve(localImg);
       localImg.onerror = reject;
-      localImg.src = src;
+      localImg.src = resolved;
     };
-    img.src = src;
+    img.src = resolved;
   });
 }
 
@@ -195,10 +197,11 @@ function loadImage(src: string): Promise<HTMLImageElement> {
  * Loads an image with strict timeout and CORS safety to avoid blocking or canvas tainting
  */
 function loadSafeImage(src: string, timeoutMs = 2500): Promise<HTMLImageElement> {
+  const resolved = resolveImageUrl(src);
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Image load timeout')), timeoutMs);
     const img = new Image();
-    if (!src.startsWith('data:')) {
+    if (!resolved.startsWith('data:')) {
       img.crossOrigin = 'anonymous';
     }
     img.onload = () => {
@@ -209,7 +212,7 @@ function loadSafeImage(src: string, timeoutMs = 2500): Promise<HTMLImageElement>
       clearTimeout(timer);
       reject(e);
     };
-    img.src = src;
+    img.src = resolved;
   });
 }
 

@@ -1,34 +1,17 @@
 /**
  * BRANDX Admin Daily Status & Suvichar CMS Service
- * Connects directly to backend PostgreSQL + Prisma DailyContent CMS
+ * Connects directly to backend PostgreSQL + Prisma DailyContent CMS (Single Source of Truth)
  */
 
 import { AdminDailyStatus } from '../types';
 import { adminDailyContentApi } from './adminDailyContentApi';
-
-const STORAGE_KEY = 'brandx_admin_daily_status_cache';
-
-function getCachedStatuses(): AdminDailyStatus[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return [];
-}
-
-function saveToCache(items: AdminDailyStatus[]) {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    } catch {}
-  }
-}
+import { getIndiaDateString } from '../../utils/timezone';
 
 function mapBackendToAdminStatus(b: any): AdminDailyStatus {
+  const dateStr = b.date || (b.contentDate ? b.contentDate.split('T')[0] : getIndiaDateString());
   return {
     id: b.id,
-    date: b.date || (b.contentDate ? b.contentDate.split('T')[0] : new Date().toISOString().split('T')[0]),
+    date: dateStr,
     title: b.title,
     headline: b.headline || b.title,
     quoteHindi: b.quoteHindi || b.contentText || '',
@@ -46,119 +29,99 @@ function mapBackendToAdminStatus(b: any): AdminDailyStatus {
     downloadsCount: b.downloadsCount || 0,
     tags: b.tags || [],
     authorAdminId: b.authorAdminId || b.createdBy || 'adm_system',
+    tier: b.tier,
+    status: b.status,
+    visibility: b.visibility,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
 }
 
 export const dailyStatusService = {
+  /**
+   * Fetches all daily content records from the backend database.
+   * Never returns fake fallback data. If database is empty, returns empty list.
+   */
   async getAll(): Promise<AdminDailyStatus[]> {
     try {
       const res = await adminDailyContentApi.listDailyContent({ limit: 100 });
-      if (res && Array.isArray(res.items) && res.items.length > 0) {
-        const mapped = res.items.map(mapBackendToAdminStatus);
-        saveToCache(mapped);
-        return mapped;
+      if (res && Array.isArray(res.items)) {
+        return res.items.map(mapBackendToAdminStatus);
       }
-    } catch (e) {
-      console.warn('Backend daily content fetch failed, using cache:', e);
+      return [];
+    } catch (e: any) {
+      console.error('[dailyStatusService] Failed to fetch daily content from backend:', e);
+      throw new Error(e?.message || 'Daily content backend se load nahi ho saka');
     }
-    return getCachedStatuses();
   },
 
+  /**
+   * Gets today's morning content based on Asia/Kolkata date
+   */
   async getTodayStatus(): Promise<AdminDailyStatus | null> {
     const items = await this.getAll();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getIndiaDateString();
     return items.find((i) => i.date === today && i.isActive) || items[0] || null;
   },
 
+  /**
+   * Gets a specific daily content record by its backend ID
+   */
   async getById(id: string): Promise<AdminDailyStatus | null> {
     try {
       const item = await adminDailyContentApi.getDailyContentById(id);
       if (item) return mapBackendToAdminStatus(item);
-    } catch {
-      const cached = getCachedStatuses();
-      return cached.find((i) => i.id === id) || null;
+    } catch (e) {
+      console.error(`[dailyStatusService] Failed to fetch item ${id}:`, e);
     }
     return null;
   },
 
+  /**
+   * Saves or updates daily content permanently in the backend database.
+   * Throws an explicit error if database save fails.
+   */
   async save(status: Partial<AdminDailyStatus>): Promise<AdminDailyStatus> {
     const payload = {
       title: status.title || 'Daily Status',
-      headline: status.headline,
-      quoteHindi: status.quoteHindi,
+      headline: status.headline || status.title || 'Daily Status',
+      quoteHindi: status.quoteHindi || '',
       quoteEnglish: status.quoteEnglish,
       quoteHinglish: status.quoteHinglish,
-      contentText: status.quoteHindi,
+      contentText: status.quoteHindi || '',
       language: status.language || 'hi',
       category: status.category || 'suvichar',
       imageUrl: status.imageUrl,
       thumbnailUrl: status.thumbnailUrl || status.imageUrl,
       aspectRatio: status.aspectRatio || '9:16',
-      date: status.date || new Date().toISOString().split('T')[0],
+      date: status.date || getIndiaDateString(),
       isPublished: status.isPublished ?? true,
       isActive: status.isActive ?? true,
       publishAt: status.publishDateTime || new Date().toISOString(),
       tags: status.tags || [],
+      tier: status.tier || 'FREE',
+      status: status.status || 'PUBLISHED',
+      visibility: status.visibility || 'PUBLIC',
     };
 
-    let savedItem: AdminDailyStatus;
-
-    try {
-      if (status.id && !status.id.startsWith('ds_local_')) {
-        const res = await adminDailyContentApi.updateDailyContent(status.id, payload);
-        savedItem = mapBackendToAdminStatus(res);
-      } else {
-        const res = await adminDailyContentApi.createDailyContent(payload);
-        savedItem = mapBackendToAdminStatus(res);
-      }
-    } catch (e) {
-      console.warn('Direct backend save failed, updating cache:', e);
-      savedItem = {
-        id: status.id || `ds_local_${Date.now()}`,
-        date: payload.date,
-        title: payload.title,
-        headline: payload.headline || '',
-        quoteHindi: payload.quoteHindi || '',
-        quoteEnglish: payload.quoteEnglish,
-        quoteHinglish: payload.quoteHinglish,
-        language: payload.language as any,
-        category: payload.category as any,
-        imageUrl: payload.imageUrl || '',
-        thumbnailUrl: payload.thumbnailUrl || '',
-        aspectRatio: payload.aspectRatio as any,
-        isActive: payload.isActive,
-        isPublished: payload.isPublished,
-        publishDateTime: payload.publishAt,
-        sharesCount: status.sharesCount || 0,
-        downloadsCount: status.downloadsCount || 0,
-        tags: payload.tags,
-        authorAdminId: 'adm_local',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+    if (!payload.imageUrl) {
+      throw new Error('Image URL zaroori hai. Kripya pehle image upload karein.');
     }
 
-    const items = getCachedStatuses();
-    const idx = items.findIndex((i) => i.id === savedItem.id);
-    if (idx >= 0) items[idx] = savedItem;
-    else items.unshift(savedItem);
-    saveToCache(items);
-
-    return savedItem;
+    if (status.id && !status.id.startsWith('ds_local_')) {
+      const res = await adminDailyContentApi.updateDailyContent(status.id, payload);
+      return mapBackendToAdminStatus(res);
+    } else {
+      const res = await adminDailyContentApi.createDailyContent(payload);
+      return mapBackendToAdminStatus(res);
+    }
   },
 
+  /**
+   * Deletes daily content permanently from backend database.
+   */
   async delete(id: string): Promise<boolean> {
-    try {
-      if (!id.startsWith('ds_local_')) {
-        await adminDailyContentApi.deleteDailyContent(id);
-      }
-    } catch (e) {
-      console.warn('Backend delete failed:', e);
-    }
-    const items = getCachedStatuses();
-    saveToCache(items.filter((i) => i.id !== id));
+    await adminDailyContentApi.deleteDailyContent(id);
     return true;
   },
 };

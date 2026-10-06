@@ -3,7 +3,9 @@ import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
+import fs from 'fs';
 import { config } from './config/index.js';
+import { storageProvider } from './integrations/storageProvider.js';
 import { apiRateLimiter } from './middleware/rateLimitMiddleware.js';
 import { errorHandler, notFoundHandler } from './middleware/errorMiddleware.js';
 import routes, { healthCheckHandler } from './routes/index.js';
@@ -42,8 +44,14 @@ export function createApp(): Express {
         if (!origin) return callback(null, true);
 
         const cleanOrigin = origin.replace(/\/+$/, '');
-        // Explicitly check configured production origins
-        if (config.corsOrigin.includes(cleanOrigin) || config.corsOrigin.includes(origin)) {
+        // Explicitly check configured production origins or standard BrandX frontend domains
+        if (
+          config.corsOrigin.includes(cleanOrigin) ||
+          config.corsOrigin.includes(origin) ||
+          cleanOrigin.includes('brandx-frontend.onrender.com') ||
+          cleanOrigin.includes('localhost') ||
+          cleanOrigin.includes('127.0.0.1')
+        ) {
           return callback(null, true);
         }
 
@@ -67,20 +75,47 @@ export function createApp(): Express {
   // Request Body Parsers with rawBody preservation for Webhook HMAC verification
   app.use(
     express.json({
-      limit: '10mb',
+      limit: '15mb',
       verify: (req: any, _res, buf) => {
         req.rawBody = buf;
       },
     })
   );
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
   // Global API Rate Limiter
   app.use('/api/', apiRateLimiter);
 
-  // Serve static media uploads
+  // Serve static public assets (brand logo, favicon, etc.)
+  const publicPath = path.resolve(process.cwd(), 'public');
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+  }
+
+  // Serve static media uploads and /media with resilient PostgreSQL MediaAsset fallback
   const uploadsPath = path.resolve(process.cwd(), 'uploads');
   app.use('/uploads', express.static(uploadsPath));
+
+  const streamFromMediaAsset = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      const rawKey = req.path.replace(/^\/+/, '');
+      if (!rawKey) return next();
+      const asset = await storageProvider.getMediaAsset(rawKey);
+      if (asset) {
+        res.setHeader('Content-Type', asset.mimeType);
+        res.setHeader('Content-Length', asset.buffer.length);
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        return res.end(asset.buffer);
+      }
+    } catch {
+      // Pass through to next
+    }
+    next();
+  };
+
+  app.use('/uploads', streamFromMediaAsset);
+  app.use('/media', streamFromMediaAsset);
 
   // Root welcome ping
   app.get('/', (req, res) => {

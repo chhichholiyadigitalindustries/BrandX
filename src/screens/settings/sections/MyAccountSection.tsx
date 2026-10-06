@@ -5,6 +5,7 @@ import { firebaseAuthService } from '../../../services/firebaseAuthService';
 import { auth } from '../../../config/firebase';
 import { updatePassword, sendEmailVerification } from 'firebase/auth';
 import { useLanguage } from '../../../context/LanguageContext';
+import { resolveImageUrl } from '../../../utils/imageUrl';
 
 interface MyAccountSectionProps {
   business: BusinessProfile;
@@ -159,7 +160,7 @@ export const MyAccountSection: React.FC<MyAccountSectionProps> = ({
             <div className="relative">
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 p-0.5 shadow-lg flex items-center justify-center overflow-hidden">
                 <img
-                  src={business.logoUrl || '/brandx-logo.png'}
+                  src={resolveImageUrl(business.logoUrl)}
                   alt={name}
                   className="w-full h-full object-cover rounded-2xl bg-slate-950"
                   onError={(e) => {

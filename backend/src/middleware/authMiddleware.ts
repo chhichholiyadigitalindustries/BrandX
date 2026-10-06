@@ -87,3 +87,35 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   req.user = user;
   next();
 }
+
+export async function requireUserOrAdminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    sendError(res, 'Authentication token required', 401, 'UNAUTHORIZED');
+    return;
+  }
+
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    sendError(res, 'Authentication token required', 401, 'UNAUTHORIZED');
+    return;
+  }
+
+  // 1. Try Admin Token
+  try {
+    const { verifyAdminToken } = await import('../utils/jwt.js');
+    const { adminRepository } = await import('../repositories/adminRepository.js');
+    const decodedAdmin = verifyAdminToken(token);
+    const admin = await adminRepository.findById(decodedAdmin.adminId);
+    if (admin && admin.status === 'ACTIVE' && admin.isActive !== false) {
+      req.adminUser = admin;
+      return next();
+    }
+  } catch {
+    // Not an admin token
+  }
+
+  // 2. Fall back to standard User Token
+  return requireAuth(req, res, next);
+}

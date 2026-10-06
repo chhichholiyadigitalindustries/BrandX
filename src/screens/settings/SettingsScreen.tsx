@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScreenId, BusinessProfile } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { resolveImageUrl } from '../../utils/imageUrl';
 
 // Sub-sections
 import { MyAccountSection } from './sections/MyAccountSection';
@@ -217,7 +218,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             {/* Quick Profile Summary Card */}
             <div className="p-4 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl flex items-center gap-3.5">
               <img
-                src={business.logoUrl || '/brandx-logo.png'}
+                src={resolveImageUrl(business.logoUrl)}
                 alt={business.name}
                 className="w-12 h-12 rounded-2xl object-cover ring-2 ring-blue-500/30 bg-slate-950 shrink-0"
                 onError={(e) => {

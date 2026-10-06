@@ -1,4 +1,5 @@
 import React from 'react';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 interface UpiQrCodeProps {
   className?: string;
@@ -77,7 +78,7 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
         <img
           alt="Brand Logo"
           className="w-full h-full object-contain rounded-md"
-          src={logoUrl || '/brandx-logo.png'}
+          src={resolveImageUrl(logoUrl || '/brandx-logo.png')}
           onError={(e) => {
             (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
           }}

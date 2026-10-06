@@ -19,6 +19,7 @@ import {
 import { NfcCardPdfTemplate, NfcCardExportData } from '../components/NfcCardPdfTemplate';
 import { exportNfcVisitingCardToPdf, prepareNfcCardExportData } from '../utils/nfcCardPdfExport';
 import { getNfcCardTheme } from '../utils/nfcCardTheme';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 
 interface DigitalStoreScreenProps {
@@ -1087,7 +1088,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 p-0.5 shrink-0 overflow-hidden shadow">
                   <img
-                    src={business.logoUrl || APP_IMAGES.logo}
+                    src={resolveImageUrl(business.logoUrl || APP_IMAGES.logo)}
                     alt={business.name}
                     className="w-full h-full object-cover rounded-[10px]"
                   />
@@ -1298,7 +1299,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                       <div className="flex items-end justify-between">
                         <div className="w-16 h-16 rounded-2xl bg-white p-1 shadow-xl border-2 border-blue-500 overflow-hidden shrink-0">
                           <img
-                            src={store?.logoUrl || business.logoUrl || APP_IMAGES.logo}
+                            src={resolveImageUrl(store?.logoUrl || business.logoUrl || APP_IMAGES.logo)}
                             alt={store?.title || business.name}
                             className="w-full h-full object-cover rounded-xl"
                           />
@@ -1528,7 +1529,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                       </div>
                       <div className="w-12 h-12 rounded-xl bg-white/10 p-1 border border-white/20 overflow-hidden shadow">
                         <img
-                          src={card?.logoUrl || business.logoUrl || APP_IMAGES.logo}
+                          src={resolveImageUrl(card?.logoUrl || business.logoUrl || APP_IMAGES.logo)}
                           alt="Logo"
                           className="w-full h-full object-cover rounded-lg"
                         />

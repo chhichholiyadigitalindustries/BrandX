@@ -906,6 +906,9 @@ model DailyContent {
   downloadsCount      Int              @default(0)
   viewsCount          Int              @default(0)
   tags                String[]
+  status              String           @default("ACTIVE")
+  visibility          String           @default("PUBLIC")
+  tier                ContentTier      @default(FREE)
   createdBy           String?
   authorAdminId       String?
   createdAt           DateTime         @default(now())
@@ -924,6 +927,25 @@ model DailyContent {
   @@index([publishAt])
   @@index([contentType])
   @@index([isFeatured])
+  @@index([tier])
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+// PERMANENT MEDIA ASSETS STORAGE (PERSISTENT CLOUD/POSTGRES BACKING)
+// ------------------------------------------------------------
+
+model MediaAsset {
+  id                  String           @id @default(uuid())
+  key                 String           @unique
+  fileName            String
+  mimeType            String
+  sizeBytes           Int
+  data                Bytes
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([key])
 }
 
 model ContentCategory {

@@ -44,13 +44,48 @@ export const firebaseAuthSchema = z.object({
 });
 
 // ------------------------------------------------------------
-// USER & BUSINESS VALIDATORS
+// SAFE MEDIA & URL VALIDATOR
+// Supports absolute URLs (https://, http://), relative paths (/uploads/..., /api/v1/media/..., /brandx-logo.png), and MediaAsset keys/IDs.
 // ------------------------------------------------------------
+
+export const safeUrlSchema = z
+  .string()
+  .trim()
+  .refine(
+    (val) => {
+      if (!val) return true;
+      const lower = val.toLowerCase();
+      if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.includes('..')) {
+        return false;
+      }
+      // Allow relative paths (/uploads/..., /api/v1/..., /brandx-logo.png)
+      if (val.startsWith('/')) {
+        return true;
+      }
+      // Allow MediaAsset keys
+      if (/^(daily-content|daily-status|posters|festivals|logos|avatars|announcements|general|uploads)\/[a-zA-Z0-9_.-]+$/i.test(val)) {
+        return true;
+      }
+      // Allow UUIDs
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)) {
+        return true;
+      }
+      try {
+        const url = new URL(val);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Must be a valid media URL, relative path, or media key' }
+  )
+  .optional()
+  .or(z.literal(''));
 
 export const updateUserProfileSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional().or(z.literal('')),
-  profileImage: z.string().url().optional().or(z.literal('')),
+  profileImage: safeUrlSchema,
   language: z.enum(['hi', 'en']).optional(),
   timezone: z.string().optional(),
 });
@@ -413,23 +448,6 @@ export const recordInvoicePaymentSchema = z.object({
 // DIGITAL DUKAAN & DIGITAL CARD
 // ------------------------------------------------------------
 
-const safeUrlSchema = z
-  .string()
-  .trim()
-  .refine(
-    (val) => {
-      if (!val) return true;
-      try {
-        const url = new URL(val);
-        return url.protocol === 'http:' || url.protocol === 'https:';
-      } catch {
-        return false;
-      }
-    },
-    { message: 'Must be a valid HTTP or HTTPS URL' }
-  )
-  .optional()
-  .or(z.literal(''));
 
 const socialLinksSchema = z
   .object({

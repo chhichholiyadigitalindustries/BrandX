@@ -8,6 +8,7 @@ import { PlatformUser } from '../types';
 import { AdminTable, Column } from '../components/AdminTable';
 import { AdminModal } from '../components/AdminModal';
 import { useAdminToast } from '../components/AdminToast';
+import { resolveImageUrl } from '../../utils/imageUrl';
 
 export const AdminUsersScreen: React.FC = () => {
   const [users, setUsers] = useState<PlatformUser[]>([]);
@@ -68,9 +69,9 @@ export const AdminUsersScreen: React.FC = () => {
       render: (u) => (
         <div className="flex items-center gap-3">
           <img
-            src={u.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80'}
+            src={u.avatarUrl ? resolveImageUrl(u.avatarUrl) : '/brandx-logo.png'}
             alt=""
-            className="w-9 h-9 rounded-xl object-cover border border-white/10 shrink-0"
+            className="w-9 h-9 rounded-xl object-cover border border-white/10 shrink-0 bg-white/5"
           />
           <div className="min-w-0">
             <p className="font-bold text-white text-xs truncate">{u.name}</p>
@@ -206,9 +207,9 @@ export const AdminUsersScreen: React.FC = () => {
             {/* Header info */}
             <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
               <img
-                src={selectedUser.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'}
+                src={selectedUser.avatarUrl ? resolveImageUrl(selectedUser.avatarUrl) : '/brandx-logo.png'}
                 alt=""
-                className="w-14 h-14 rounded-2xl object-cover border border-white/20"
+                className="w-14 h-14 rounded-2xl object-cover border border-white/20 bg-white/5"
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

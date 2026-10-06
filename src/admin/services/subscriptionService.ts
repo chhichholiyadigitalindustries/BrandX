@@ -41,41 +41,49 @@ class SubscriptionService {
 
       if (res.ok && json?.data) {
         const raw = json.data.subscribers || [];
-        return raw.map((s: any) => ({
-          id: s.id,
-          userId: s.userId,
-          userName: s.user?.name || 'Vyapari User',
-          userPhone: s.user?.mobile || '',
-          userEmail: s.user?.email || '',
-          businessId: s.businessId || '',
-          businessName: s.business?.name || 'Vyapari Business',
-          businessGstin: s.business?.gstin || undefined,
-          businessCity: s.business?.city || undefined,
-          businessState: s.business?.state || undefined,
-          planId: s.planId,
-          planName: s.plan?.name || 'Pro Plan',
-          planCode: s.plan?.code || 'monthly',
-          planPrice: Number(s.plan?.price || s.amount || 0),
-          amount: Number(s.amount || s.plan?.price || 0),
-          amountPaid: Number(s.amount || s.plan?.price || 0),
-          currency: s.currency || 'INR',
-          status: (s.status?.toLowerCase() as SubscriptionStatus) || 'active',
-          purchaseDate: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
-          startDate: s.startDate ? new Date(s.startDate).toISOString().split('T')[0] : 'N/A',
-          expiryDate: s.endDate ? new Date(s.endDate).toISOString().split('T')[0] : 'N/A',
-          autoRenew: s.autoRenew !== false,
-          paymentStatus: 'success',
-          paymentGateway: (s.paymentProvider?.toLowerCase() as any) || 'razorpay',
-          paymentMethod: 'upi',
-          paymentId: s.providerSubscriptionId || s.paymentId || 'N/A',
-          transactionId: s.id,
-          orderId: `ord_${s.id.slice(-6)}`,
-          totalPaid: Number(s.amount || s.plan?.price || 0),
-          renewalCount: 0,
-          history: [],
-          createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
-          updatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : new Date().toISOString(),
-        }));
+        return raw.map((s: any) => {
+          const firstTx = s.paymentTransactions?.[0];
+          const rawExpiry = s.expiryDate || s.currentPeriodEnd || s.endDate;
+          const rawStart = s.startDate || s.currentPeriodStart || s.createdAt;
+          const expiryFormatted = rawExpiry ? new Date(rawExpiry).toISOString().split('T')[0] : 'Not available';
+          const startFormatted = rawStart ? new Date(rawStart).toISOString().split('T')[0] : 'Not available';
+
+          return {
+            id: s.id,
+            userId: s.userId || '',
+            userName: s.user?.name || 'Not available',
+            userPhone: s.user?.mobile || s.user?.phone || 'Not available',
+            userEmail: s.user?.email || 'Not available',
+            businessId: s.businessId || s.business?.id || '',
+            businessName: s.business?.name || 'Not available',
+            businessGstin: s.business?.gstin || undefined,
+            businessCity: s.business?.city || undefined,
+            businessState: s.business?.state || undefined,
+            planId: s.planId || '',
+            planName: s.plan?.name || (s.planCode === 'pro_yearly' ? 'Pro Annual' : 'Pro Plan'),
+            planCode: s.plan?.code || s.planCode || 'yearly',
+            planPrice: Number(s.amount || s.plan?.price || 0),
+            amount: Number(s.amount || s.plan?.price || 0),
+            amountPaid: Number(s.amount || s.plan?.price || 0),
+            currency: s.currency || 'INR',
+            status: (s.status?.toLowerCase() as SubscriptionStatus) || 'active',
+            purchaseDate: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
+            startDate: startFormatted,
+            expiryDate: expiryFormatted,
+            autoRenew: s.autoRenew !== false,
+            paymentStatus: firstTx?.status?.toLowerCase() === 'captured' || firstTx?.status?.toLowerCase() === 'success' || s.status?.toUpperCase() === 'ACTIVE' ? 'success' : (firstTx?.status?.toLowerCase() || 'pending'),
+            paymentGateway: (firstTx?.gateway?.toLowerCase() || s.paymentProvider?.toLowerCase() || 'razorpay') as any,
+            paymentMethod: firstTx?.method || 'upi',
+            paymentId: firstTx?.providerPaymentId || s.providerSubscriptionId || s.paymentId || 'Not available',
+            transactionId: firstTx?.id || s.id,
+            orderId: firstTx?.providerOrderId || s.orderId || 'Not available',
+            totalPaid: Number(s.amount || s.plan?.price || 0),
+            renewalCount: 0,
+            history: [],
+            createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
+            updatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : new Date().toISOString(),
+          };
+        });
       }
     } catch (err) {
       console.warn('[SubscriptionService] Error fetching subscribers from backend:', err);

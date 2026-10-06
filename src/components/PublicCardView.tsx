@@ -3,6 +3,7 @@ import { digitalCardApi, PublicCardData } from '../services/digitalCardApi';
 import { NfcCardPdfTemplate, NfcCardExportData } from './NfcCardPdfTemplate';
 import { exportNfcVisitingCardToPdf, prepareNfcCardExportData } from '../utils/nfcCardPdfExport';
 import { getNfcCardTheme } from '../utils/nfcCardTheme';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 interface PublicCardViewProps {
   slug: string;
@@ -237,7 +238,7 @@ export const PublicCardView: React.FC<PublicCardViewProps> = ({ slug }) => {
                 </div>
                 <div className="w-12 h-12 rounded-2xl bg-white/10 p-1 border border-white/20 overflow-hidden shrink-0 shadow-lg">
                   <img
-                    src={card.profileImageUrl || card.logoUrl || '/brandx-logo.png'}
+                    src={resolveImageUrl(card.profileImageUrl || card.logoUrl || '/brandx-logo.png')}
                     alt="Profile"
                     className="w-full h-full object-cover rounded-xl"
                   />

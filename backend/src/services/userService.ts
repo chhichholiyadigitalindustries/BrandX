@@ -23,11 +23,12 @@ export class UserService {
     };
   }
 
-  async updateProfile(userId: string, data: { name?: string; email?: string; language?: string }) {
+  async updateProfile(userId: string, data: { name?: string; email?: string; language?: string; profileImage?: string }) {
     const updated = await userRepository.update(userId, {
       name: data.name,
       email: data.email || undefined,
       language: data.language,
+      profileImage: data.profileImage !== undefined ? data.profileImage : undefined,
     });
 
     return {
@@ -35,6 +36,7 @@ export class UserService {
       name: updated.name,
       mobile: updated.mobile,
       email: updated.email,
+      profileImage: updated.profileImage,
       language: updated.language,
       isPro: updated.isPro,
     };

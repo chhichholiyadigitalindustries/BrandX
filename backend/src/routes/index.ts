@@ -19,6 +19,7 @@ import transactionRoutes from './transactionRoutes.js';
 import upiRoutes from './upiRoutes.js';
 import referralRoutes from './referralRoutes.js';
 import walletRoutes from './walletRoutes.js';
+import mediaRoutes from './mediaRoutes.js';
 
 import { prisma, isPostgresConnected } from '../config/database.js';
 import { config } from '../config/index.js';
@@ -75,6 +76,7 @@ router.use('/subscriptions', subscriptionRoutes);
 router.use('/subscription', subscriptionRoutes);
 router.use('/referrals', referralRoutes);
 router.use('/wallet', walletRoutes);
+router.use('/media', mediaRoutes);
 router.use('/admin', adminRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/payments', webhookRoutes);

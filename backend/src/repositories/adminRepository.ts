@@ -258,12 +258,12 @@ export class AdminRepository {
         prisma.subscription.count({ where: { status: 'ACTIVE' } }).catch(() => 0),
         prisma.paymentTransaction
           .findMany({
-            where: { status: 'SUCCESS' },
+            where: { status: { in: ['SUCCESS', 'CAPTURED'] as any } },
             select: { amount: true },
           })
           .catch(async () => {
             const rows = (await prisma
-              .$queryRawUnsafe<any[]>(`SELECT amount FROM "PaymentTransaction" WHERE status = 'SUCCESS'`)
+              .$queryRawUnsafe<any[]>(`SELECT amount FROM "PaymentTransaction" WHERE status IN ('SUCCESS', 'CAPTURED')`)
               .catch(() => [])) || [];
             return rows;
           }),

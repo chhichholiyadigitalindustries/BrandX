@@ -3,6 +3,8 @@ import { BusinessProfile } from '../types';
 import { APP_IMAGES } from '../data/mockData';
 import { useLanguage } from '../context/LanguageContext';
 import { businessApi } from '../services/businessApi';
+import { resolveImageUrl } from '../utils/imageUrl';
+import { mediaApi } from '../services/mediaApi';
 
 interface OnboardingScreenProps {
   business: BusinessProfile;
@@ -71,19 +73,21 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     'Airtel Payments Bank',
   ];
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          const res = ev.target.result as string;
-          setLogoPreview(res);
-          setFormData((prev) => ({ ...prev, logoUrl: res }));
-          showToast('Shop logo / photo updated! 📸');
-        }
-      };
-      reader.readAsDataURL(file);
+      const localUrl = URL.createObjectURL(file);
+      setLogoPreview(localUrl);
+      showToast('Uploading shop logo... ⏳');
+      try {
+        const uploadRes = await mediaApi.uploadImage(file, 'logos', 'business');
+        setFormData((prev) => ({ ...prev, logoUrl: uploadRes.url }));
+        setLogoPreview(uploadRes.url);
+        showToast('Shop logo uploaded and saved! 📸');
+      } catch (err: any) {
+        console.error('Logo upload error:', err);
+        showToast(err.message || 'Failed to upload logo.');
+      }
     }
   };
 
@@ -266,7 +270,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
                 <div className="w-24 h-24 rounded-2xl bg-[#f2f3ff] flex flex-col items-center justify-center text-[#3525cd] transition-all shadow-inner group-hover:bg-[#eaedff] overflow-hidden border-2 border-dashed border-indigo-200">
                   {logoPreview ? (
                     <img
-                      src={logoPreview}
+                      src={resolveImageUrl(logoPreview)}
                       alt="Shop Logo"
                       className="w-full h-full object-cover rounded-2xl"
                     />

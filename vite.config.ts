@@ -85,6 +85,36 @@ export default defineConfig(() => {
                 },
               },
             },
+            {
+              urlPattern: /.*\/api\/v1\/media\/.*/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'brandx-media-cache',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 7,
+                },
+                cacheableResponse: {
+                  statuses: [200],
+                },
+                networkTimeoutSeconds: 3,
+              },
+            },
+            {
+              urlPattern: /.*\/uploads\/.*/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'brandx-uploads-cache',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 7,
+                },
+                cacheableResponse: {
+                  statuses: [200],
+                },
+                networkTimeoutSeconds: 3,
+              },
+            },
           ],
         },
         devOptions: {
@@ -101,6 +131,16 @@ export default defineConfig(() => {
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      proxy: {
+        '/api': {
+          target: process.env.VITE_BACKEND_URL || 'http://localhost:5000',
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: process.env.VITE_BACKEND_URL || 'http://localhost:5000',
+          changeOrigin: true,
+        },
+      },
     },
   };
 });

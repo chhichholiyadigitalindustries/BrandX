@@ -139,6 +139,24 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
       } else if (initialPayload?.primaryBusiness) {
         primaryBiz = initialPayload.primaryBusiness;
         setActiveBusinessId(primaryBiz.id);
+        businessApi.syncLocalProfile(primaryBiz);
+        setBusiness((prev) => ({
+          ...prev,
+          id: primaryBiz.id,
+          name: primaryBiz.name || primaryBiz.businessName || prev.name,
+          ownerName: primaryBiz.ownerName || prev.ownerName,
+          category: primaryBiz.category || primaryBiz.businessType || prev.category,
+          phone: primaryBiz.mobile || primaryBiz.phone || prev.phone,
+          email: primaryBiz.email || prev.email,
+          address: primaryBiz.address || prev.address,
+          city: primaryBiz.city || prev.city,
+          state: primaryBiz.state || prev.state,
+          pincode: primaryBiz.pincode || prev.pincode,
+          gstin: primaryBiz.gstin || prev.gstin,
+          pan: primaryBiz.pan || prev.pan,
+          upiId: primaryBiz.upiId || prev.upiId,
+          logoUrl: primaryBiz.logoUrl || primaryBiz.logo || prev.logoUrl,
+        }));
       }
 
       // 2. Fetch Khata customers

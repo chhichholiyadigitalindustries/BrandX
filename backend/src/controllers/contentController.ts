@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import { contentService } from '../services/contentService.js';
+import { storageProvider } from '../integrations/storageProvider.js';
 import { sendSuccess, sendError, sendPaginated } from '../utils/response.js';
 
 export class ContentController {
+
   async getTodayContent(req: Request, res: Response): Promise<void> {
     try {
       const dateStr = req.query.date as string;
@@ -175,6 +177,30 @@ export class ContentController {
       sendError(res, error.message, 400);
     }
   }
+
+  async streamMedia(req: Request, res: Response): Promise<void> {
+    try {
+      const key = (req.params as any)[0] || (req.params as any).key;
+      if (!key) {
+        res.status(400).send('Missing media key');
+        return;
+      }
+      const asset = await storageProvider.getMediaAsset(key);
+      if (!asset) {
+        res.status(404).send('Media asset not found');
+        return;
+      }
+      res.setHeader('Content-Type', asset.mimeType);
+      res.setHeader('Content-Length', asset.buffer.length);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.send(asset.buffer);
+    } catch (error: any) {
+      res.status(500).send('Error streaming media: ' + error.message);
+    }
+  }
 }
 
 export const contentController = new ContentController();
+

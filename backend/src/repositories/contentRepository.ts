@@ -1,4 +1,5 @@
 import { prisma } from '../config/database.js';
+import { getIndiaDateString, getIndiaDateRange } from '../utils/timezone.js';
 import {
   DailyContent,
   ContentCategory,
@@ -18,14 +19,17 @@ export class ContentRepository {
   /**
    * Get today's featured or primary daily content
    * Enforces server-side scheduling: publishAt <= now AND (expiresAt > now OR expiresAt IS NULL)
+   * Date logic is grounded strictly in Asia/Kolkata timezone.
    */
   async getTodayContent(params?: {
     dateStr?: string;
     language?: string;
     categoryId?: string;
     contentType?: string;
+    tier?: 'FREE' | 'PRO';
   }): Promise<DailyContent | null> {
-    const today = params?.dateStr || new Date().toISOString().split('T')[0];
+    const today = params?.dateStr || getIndiaDateString();
+    const { startUtc, endUtc } = getIndiaDateRange(today);
     const now = new Date();
 
     const where: Prisma.DailyContentWhereInput = {
@@ -35,8 +39,8 @@ export class ContentRepository {
         { date: today },
         {
           contentDate: {
-            gte: new Date(`${today}T00:00:00.000Z`),
-            lte: new Date(`${today}T23:59:59.999Z`),
+            gte: startUtc,
+            lte: endUtc,
           },
         },
       ],
@@ -59,8 +63,11 @@ export class ContentRepository {
     if (params?.contentType) {
       where.contentType = params.contentType as ContentType;
     }
+    if (params?.tier === 'FREE') {
+      where.tier = 'FREE';
+    }
 
-    return prisma.dailyContent.findFirst({
+    const todayMatch = await prisma.dailyContent.findFirst({
       where,
       orderBy: [
         { isFeatured: 'desc' },
@@ -72,7 +79,35 @@ export class ContentRepository {
         festival: true,
       },
     });
+
+    if (todayMatch) return todayMatch;
+
+    // Fallback if today's content has not been explicitly scheduled yet
+    if (!params?.dateStr) {
+      return prisma.dailyContent.findFirst({
+        where: {
+          isActive: true,
+          isPublished: true,
+          ...(params?.tier === 'FREE' ? { tier: 'FREE' } : {}),
+          AND: [
+            { OR: [{ publishAt: null }, { publishAt: { lte: now } }] },
+            { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          ],
+        },
+        orderBy: [
+          { contentDate: 'desc' },
+          { createdAt: 'desc' },
+        ],
+        include: {
+          categoryRel: true,
+          festival: true,
+        },
+      });
+    }
+
+    return null;
   }
+
 
   /**
    * Get daily content by exact ID (with scheduling check for public users)
@@ -101,6 +136,7 @@ export class ContentRepository {
    */
   async getContentByDate(dateStr: string, language?: string): Promise<DailyContent[]> {
     const now = new Date();
+    const { startUtc, endUtc } = getIndiaDateRange(dateStr);
     const where: Prisma.DailyContentWhereInput = {
       isActive: true,
       isPublished: true,
@@ -108,8 +144,8 @@ export class ContentRepository {
         { date: dateStr },
         {
           contentDate: {
-            gte: new Date(`${dateStr}T00:00:00.000Z`),
-            lte: new Date(`${dateStr}T23:59:59.999Z`),
+            gte: startUtc,
+            lte: endUtc,
           },
         },
       ],

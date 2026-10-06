@@ -1,29 +1,10 @@
 /**
  * BRANDX Admin Poster Library Service
- * Connects directly to backend PostgreSQL + Prisma ContentAsset / Poster CMS
+ * Connects directly to backend PostgreSQL + Prisma ContentAsset / Poster CMS (Single Source of Truth)
  */
 
 import { AdminPoster } from '../types';
 import { adminDailyContentApi } from './adminDailyContentApi';
-
-const STORAGE_KEY = 'brandx_admin_poster_library_cache';
-
-function getCachedPosters(): AdminPoster[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return [];
-}
-
-function saveToCache(items: AdminPoster[]) {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    } catch {}
-  }
-}
 
 function mapBackendToAdminPoster(b: any): AdminPoster {
   return {
@@ -46,13 +27,17 @@ function mapBackendToAdminPoster(b: any): AdminPoster {
 }
 
 export const posterService = {
+  /**
+   * Fetches real posters from the backend database.
+   * Returns empty array if none exist.
+   */
   async getPosters(params?: { category?: string; search?: string; tier?: 'FREE' | 'PRO' }): Promise<AdminPoster[]> {
     try {
       const res = await adminDailyContentApi.listPosters({
         limit: 100,
         search: params?.search || undefined,
       });
-      if (res && Array.isArray(res.items) && res.items.length > 0) {
+      if (res && Array.isArray(res.items)) {
         let mapped = res.items.map(mapBackendToAdminPoster);
         if (params?.category && params.category !== 'all' && params.category !== 'All') {
           mapped = mapped.filter((p) => p.category.toLowerCase().includes(params.category!.toLowerCase()));
@@ -60,23 +45,19 @@ export const posterService = {
         if (params?.tier) {
           mapped = mapped.filter((p) => (params.tier === 'PRO' ? p.isPremium : !p.isPremium));
         }
-        saveToCache(mapped);
         return mapped;
       }
-    } catch (e) {
-      console.warn('Backend poster fetch failed, using cache:', e);
+      return [];
+    } catch (e: any) {
+      console.error('[posterService] Failed to fetch posters from backend:', e);
+      return [];
     }
-    let cached = getCachedPosters();
-    if (params?.category && params.category !== 'all' && params.category !== 'All') {
-      cached = cached.filter((p) => p.category.toLowerCase().includes(params.category!.toLowerCase()));
-    }
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      cached = cached.filter((p) => p.title.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
-    }
-    return cached;
   },
 
+  /**
+   * Saves or updates poster in backend database.
+   * Throws on failure.
+   */
   async savePoster(poster: Partial<AdminPoster>): Promise<AdminPoster> {
     const payload = {
       title: poster.title || 'New Poster',
@@ -92,56 +73,24 @@ export const posterService = {
       isFeatured: Boolean(poster.isTrending),
     };
 
-    let savedItem: AdminPoster;
-
-    try {
-      if (poster.id && !poster.id.startsWith('pos_local_')) {
-        const res = await adminDailyContentApi.updatePoster(poster.id, payload);
-        savedItem = mapBackendToAdminPoster(res);
-      } else {
-        const res = await adminDailyContentApi.createPoster(payload);
-        savedItem = mapBackendToAdminPoster(res);
-      }
-    } catch (e) {
-      console.warn('Backend poster save failed, updating cache:', e);
-      savedItem = {
-        id: poster.id || `pos_local_${Date.now()}`,
-        title: payload.title,
-        category: poster.category || 'Business',
-        imageUrl: payload.imageUrl,
-        thumbnailUrl: payload.thumbnailUrl,
-        headlineDefault: poster.headlineDefault || payload.title,
-        subheadlineDefault: poster.subheadlineDefault,
-        aspectRatio: payload.aspectRatio as any,
-        isTrending: payload.isFeatured,
-        isPremium: payload.tier === 'PRO',
-        status: payload.isPublished ? 'published' : 'draft',
-        sharesCount: poster.sharesCount || 0,
-        downloadsCount: poster.downloadsCount || 0,
-        tags: payload.tags,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
+    if (!payload.imageUrl) {
+      throw new Error('Image URL zaroori hai. Kripya poster image upload karein.');
     }
 
-    const items = getCachedPosters();
-    const idx = items.findIndex((i) => i.id === savedItem.id);
-    if (idx >= 0) items[idx] = savedItem;
-    else items.unshift(savedItem);
-    saveToCache(items);
-
-    return savedItem;
+    if (poster.id && !poster.id.startsWith('pos_local_')) {
+      const res = await adminDailyContentApi.updatePoster(poster.id, payload);
+      return mapBackendToAdminPoster(res);
+    } else {
+      const res = await adminDailyContentApi.createPoster(payload);
+      return mapBackendToAdminPoster(res);
+    }
   },
 
+  /**
+   * Deletes poster permanently from backend database.
+   */
   async deletePoster(id: string): Promise<boolean> {
-    try {
-      if (!id.startsWith('pos_local_')) {
-        await adminDailyContentApi.deletePoster(id);
-      }
-    } catch (e) {
-      console.warn('Backend poster delete failed:', e);
-    }
-    const items = getCachedPosters();
-    saveToCache(items.filter((i) => i.id !== id));
+    await adminDailyContentApi.deletePoster(id);
     return true;
   },
 };

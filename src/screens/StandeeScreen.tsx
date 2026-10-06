@@ -4,6 +4,7 @@ import { APP_IMAGES } from '../data/mockData';
 import { shareImageToWhatsApp } from '../utils/posterShare';
 import { exportElementToPng } from '../utils/domToImage';
 import { WhatsAppShareGuideModal } from '../components/WhatsAppShareGuideModal';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 interface StandeeScreenProps {
   business: BusinessProfile;
@@ -315,7 +316,7 @@ export const StandeeScreen: React.FC<StandeeScreenProps> = ({ business, onOpenPr
                   <img
                     alt={business.name || 'Brand Logo'}
                     className="w-full h-full object-contain rounded-lg"
-                    src={business.logoUrl || APP_IMAGES.logo || '/brandx-logo.png'}
+                    src={resolveImageUrl(business.logoUrl || APP_IMAGES.logo || '/brandx-logo.png')}
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
                     }}

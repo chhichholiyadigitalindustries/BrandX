@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { BusinessProfile } from '../../../types';
 import { businessApi } from '../../../services/businessApi';
 import { useLanguage } from '../../../context/LanguageContext';
+import { resolveImageUrl } from '../../../utils/imageUrl';
+import { mediaApi } from '../../../services/mediaApi';
 
 interface BusinessProfileSectionProps {
   business: BusinessProfile;
@@ -47,10 +49,33 @@ export const BusinessProfileSection: React.FC<BusinessProfileSectionProps> = ({
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingLogo(true);
+    setStatusMessage(null);
+    try {
+      const res = await mediaApi.uploadImage(file, 'logos', 'business', business.id);
+      handleChange('logoUrl', res.url);
+      setStatusMessage({
+        type: 'success',
+        text: isHindi ? 'लोगो सफलतापूर्वक अपलोड हो गया! सहेजने के लिए "सेव करें" दबाएं।' : 'Logo uploaded successfully! Click Save to apply changes.',
+      });
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err?.message || (isHindi ? 'लोगो अपलोड विफल रहा।' : 'Failed to upload logo.'),
+      });
+    } finally {
+      setIsUploadingLogo(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -175,6 +200,46 @@ export const BusinessProfileSection: React.FC<BusinessProfileSectionProps> = ({
           </h4>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Business Logo Upload */}
+            <div className="md:col-span-2 p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row items-center gap-4">
+              <div className="relative w-20 h-20 rounded-2xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0 shadow-inner group">
+                <img
+                  src={resolveImageUrl(formData.logoUrl)}
+                  alt="Business Logo"
+                  className="w-full h-full object-contain p-1"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
+                  }}
+                />
+                {isUploadingLogo && (
+                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-emerald-400 animate-spin text-[24px]">progress_activity</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 text-center sm:text-left">
+                <p className="text-xs font-bold text-white mb-0.5">
+                  {isHindi ? 'दुकान का लोगो / ट्रेडमार्क' : 'Shop / Business Logo'}
+                </p>
+                <p className="text-[11px] text-slate-400 mb-3">
+                  {isHindi
+                    ? 'यह लोगो आपके बिलों, पोस्टर्स और UPI स्टैंडी पर प्रिंट होगा (PNG, JPG, WebP - अधिकतम 10MB)'
+                    : 'This logo will be printed on all invoices, marketing posters, and UPI standees (PNG, JPG, WebP max 10MB)'}
+                </p>
+                <label className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold cursor-pointer transition-colors">
+                  <span className="material-symbols-outlined text-[16px]">cloud_upload</span>
+                  <span>{isUploadingLogo ? (isHindi ? 'अपलोड हो रहा है...' : 'Uploading...') : (isHindi ? 'नया लोगो अपलोड करें' : 'Upload New Logo')}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={isUploadingLogo}
+                    onChange={handleLogoFileChange}
+                  />
+                </label>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
                 {isHindi ? 'फर्म / दुकान का नाम *' : 'Business / Shop Name *'}

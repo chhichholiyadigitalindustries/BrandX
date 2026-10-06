@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { useAdminNavigation } from '../context/AdminNavigationContext';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import { resolveImageUrl } from '../../utils/imageUrl';
 
 export const AdminHeader: React.FC = () => {
   const { currentRoute, setMobileSidebarOpen, navigate } = useAdminNavigation();
@@ -49,6 +50,10 @@ export const AdminHeader: React.FC = () => {
         >
           <span className="material-symbols-outlined text-[22px]">menu</span>
         </button>
+
+        <div className="flex lg:hidden items-center gap-2 cursor-pointer shrink-0" onClick={() => navigate('dashboard')}>
+          <img src="/brandx-logo.png" alt="BrandX Logo" className="w-8 h-8 object-contain rounded-lg bg-[#0B0F19] p-0.5 border border-white/20" />
+        </div>
 
         <div className="min-w-0">
           <h2 className="font-extrabold text-white text-sm lg:text-base tracking-tight truncate">
@@ -95,19 +100,20 @@ export const AdminHeader: React.FC = () => {
               </div>
               <div className="space-y-2 text-xs">
                 <div className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-                  <p className="font-semibold text-gray-200">🚀 Daily Suvichar Live</p>
-                  <p className="text-gray-400 text-[11px] mt-0.5">4,210 vyaparis shared today's Ganesha poster.</p>
-                  <span className="text-[10px] text-gray-400">10 mins ago</span>
+                  <p className="font-semibold text-gray-200">🚀 Daily Content CMS Ready</p>
+                  <p className="text-gray-400 text-[11px] mt-0.5">Published morning content synchronizing with database.</p>
+                  <span className="text-[10px] text-emerald-400">Live</span>
                 </div>
                 <div className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-                  <p className="font-semibold text-gray-200">📈 High AI Copilot Volume</p>
-                  <p className="text-gray-400 text-[11px] mt-0.5">Voice-to-Bill usage up 32% today.</p>
-                  <span className="text-[10px] text-gray-400">1 hour ago</span>
+                  <p className="font-semibold text-gray-200">🔒 Database &amp; API Active</p>
+                  <p className="text-gray-400 text-[11px] mt-0.5">Neon PostgreSQL cloud database operational.</p>
+                  <span className="text-[10px] text-emerald-400">Connected</span>
                 </div>
               </div>
             </div>
           )}
         </div>
+
 
         {/* Admin Profile Dropdown */}
         <div className="relative">
@@ -121,7 +127,7 @@ export const AdminHeader: React.FC = () => {
             type="button"
           >
             <img
-              src={admin?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
+              src={admin?.avatarUrl ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
               alt="Admin"
               className="w-8 h-8 rounded-lg object-cover border border-white/20 shrink-0"
             />

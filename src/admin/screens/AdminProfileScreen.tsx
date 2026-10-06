@@ -13,6 +13,7 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 import { adminAuthService } from '../services/adminAuthService';
 import { imageUploadService } from '../services/imageUploadService';
 import { useAdminToast } from '../components/AdminToast';
+import { resolveImageUrl } from '../../utils/imageUrl';
 
 export const AdminProfileScreen: React.FC = () => {
   const { admin, updateAdmin, refreshAdmin } = useAdminAuth();
@@ -53,7 +54,7 @@ export const AdminProfileScreen: React.FC = () => {
       const file = e.target.files[0];
       setIsUploadingAvatar(true);
       try {
-        const res = await imageUploadService.uploadImage(file, 'announcements');
+        const res = await imageUploadService.uploadImage(file, 'avatars');
         setAvatarUrl(res.url);
         showToast('Logo/Avatar photo uploaded! Click "Save Changes" to apply.', 'info');
       } catch (err: any) {
@@ -158,7 +159,7 @@ export const AdminProfileScreen: React.FC = () => {
           <div className="relative group shrink-0">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden border-2 border-white/20 shadow-xl bg-[#131b2e] flex items-center justify-center">
               {avatarUrl ? (
-                <img src={avatarUrl} alt={admin?.name} className="w-full h-full object-cover" />
+                <img src={resolveImageUrl(avatarUrl)} alt={admin?.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-3xl font-extrabold text-white">
                   {name ? name.slice(0, 2).toUpperCase() : 'BX'}

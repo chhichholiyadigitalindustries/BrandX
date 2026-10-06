@@ -43,7 +43,7 @@ export const businessService = {
         const businesses: PlatformBusiness[] = raw.map((b: any) => ({
           id: b.id,
           ownerId: b.ownerId,
-          ownerName: b.ownerName || b.owner?.name || 'Vyapari Owner',
+          ownerName: b.ownerName || b.owner?.name || 'Not available',
           name: b.name,
           tagline: b.tagline || '',
           businessType: b.businessType || 'Retail',
@@ -65,7 +65,7 @@ export const businessService = {
               }
             : undefined,
           logoUrl: b.logoUrl || '/brandx-logo.png',
-          registrationDate: b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : '2026-01-01',
+          registrationDate: b.createdAt ? new Date(b.createdAt).toISOString().split('T')[0] : 'N/A',
           status: b.isVerified ? 'verified' : 'pending',
           totalRevenueCalculated: 0,
           invoicesCount: b._count?.invoices || 0,

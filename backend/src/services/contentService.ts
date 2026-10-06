@@ -2,6 +2,7 @@ import { contentRepository } from '../repositories/contentRepository.js';
 import { prisma } from '../config/database.js';
 import { storageProvider } from '../integrations/storageProvider.js';
 import { sanitizeSlug, generateUniqueSlug } from '../utils/slugGenerator.js';
+import { getIndiaDateString, getIndiaDateRange } from '../utils/timezone.js';
 import {
   DailyContent,
   Festival,
@@ -173,8 +174,9 @@ export class ContentService {
     ipAddress?: string,
     userAgent?: string
   ): Promise<DailyContent> {
-    const dateStr = data.date || (data.contentDate ? new Date(data.contentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
-    const contentDate = data.contentDate ? new Date(data.contentDate) : new Date(`${dateStr}T00:00:00.000Z`);
+    const dateStr = data.date || (data.contentDate ? getIndiaDateString(new Date(data.contentDate)) : getIndiaDateString());
+    const { startUtc } = getIndiaDateRange(dateStr);
+    const contentDate = data.contentDate ? new Date(data.contentDate) : startUtc;
 
     let publishAt = data.publishAt ? new Date(data.publishAt) : new Date();
     let expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
@@ -194,6 +196,9 @@ export class ContentService {
       aspectRatio: data.aspectRatio || '9:16',
       date: dateStr,
       contentDate,
+      tier: (data.tier as ContentTier) || ContentTier.FREE,
+      status: data.status || 'ACTIVE',
+      visibility: data.visibility || 'PUBLIC',
       isPublished: data.isPublished !== false,
       isFeatured: Boolean(data.isFeatured),
       sortOrder: Number(data.sortOrder) || 0,
@@ -252,14 +257,23 @@ export class ContentService {
     if (data.contentType !== undefined) updateData.contentType = data.contentType as ContentType;
     if (data.language !== undefined) updateData.language = data.language.toLowerCase();
     if (data.aspectRatio !== undefined) updateData.aspectRatio = data.aspectRatio;
+    if (data.tier !== undefined) updateData.tier = data.tier as ContentTier;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.visibility !== undefined) updateData.visibility = data.visibility;
     if (data.isPublished !== undefined) updateData.isPublished = Boolean(data.isPublished);
     if (data.isFeatured !== undefined) updateData.isFeatured = Boolean(data.isFeatured);
     if (data.sortOrder !== undefined) updateData.sortOrder = Number(data.sortOrder);
-    if (data.date !== undefined) updateData.date = data.date;
+    if (data.date !== undefined) {
+      updateData.date = data.date;
+      if (!data.contentDate) {
+        updateData.contentDate = getIndiaDateRange(data.date).startUtc;
+      }
+    }
     if (data.contentDate !== undefined) updateData.contentDate = new Date(data.contentDate);
     if (data.publishAt !== undefined) updateData.publishAt = data.publishAt ? new Date(data.publishAt) : null;
     if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
     if (data.tags !== undefined) updateData.tags = Array.isArray(data.tags) ? data.tags : [];
+
 
     if (data.categoryId !== undefined) {
       if (data.categoryId) {

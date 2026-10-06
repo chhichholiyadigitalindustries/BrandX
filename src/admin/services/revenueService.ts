@@ -37,6 +37,22 @@ class RevenueService {
           ? Math.round(((currentMonthRev - prevMonthRev) / prevMonthRev) * 100)
           : (currentMonthRev > 0 ? 100 : 0);
 
+        const monthlyCount = d.monthlySubscribers || 0;
+        const yearlyCount = d.yearlySubscribers || 0;
+        const monthlyRev = monthlyCount * 349;
+        const yearlyRev = yearlyCount * 2999;
+        const calcTotal = (monthlyRev + yearlyRev) || totalRev || 1;
+        const monthlyPct = totalRev > 0 ? Math.round((monthlyRev / calcTotal) * 100) : 0;
+        const yearlyPct = totalRev > 0 ? (100 - monthlyPct) : 0;
+
+        const revenueByPlan = [];
+        if (monthlyCount > 0 || (monthlyCount === 0 && yearlyCount === 0)) {
+          revenueByPlan.push({ planName: 'Monthly Pro', count: monthlyCount, revenue: monthlyRev, percentage: monthlyPct });
+        }
+        if (yearlyCount > 0) {
+          revenueByPlan.push({ planName: 'Yearly Pro', count: yearlyCount, revenue: yearlyRev, percentage: yearlyPct });
+        }
+
         return {
           totalRevenue: totalRev,
           revenueToday: 0,
@@ -54,12 +70,9 @@ class RevenueService {
           netRevenue: netRev,
           monthlyRevenueBreakdown: [],
           dailyRevenueBreakdown: [],
-          revenueByPlan: [
-            { planName: 'Monthly Pro', count: d.monthlySubscribers || 0, revenue: (d.monthlySubscribers || 0) * 349, percentage: 50 },
-            { planName: 'Yearly Pro', count: d.yearlySubscribers || 0, revenue: (d.yearlySubscribers || 0) * 2999, percentage: 50 },
-          ],
+          revenueByPlan,
           revenueByGateway: [
-            { gateway: 'Razorpay', count: d.totalCapturedTransactions || 0, volume: totalRev },
+            { gateway: 'Razorpay', count: d.totalCapturedTransactions || (totalRev > 0 ? 1 : 0), volume: totalRev },
           ],
           paymentStatusDistribution: {
             success: d.totalCapturedTransactions || 0,

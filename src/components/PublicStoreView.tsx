@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { digitalStoreApi, PublicStoreData } from '../services/digitalStoreApi';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 interface PublicStoreViewProps {
   slug: string;
@@ -180,7 +181,7 @@ export const PublicStoreView: React.FC<PublicStoreViewProps> = ({ slug }) => {
             {/* Logo */}
             <div className="w-22 h-22 rounded-2xl bg-white p-1.5 shadow-2xl border-2 border-blue-500 overflow-hidden shrink-0">
               <img
-                src={store.logoUrl || '/brandx-logo.png'}
+                src={resolveImageUrl(store.logoUrl || '/brandx-logo.png')}
                 alt={store.title}
                 className="w-full h-full object-cover rounded-xl"
               />

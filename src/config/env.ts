@@ -1,6 +1,6 @@
 /**
  * BRANDX — Centralized Frontend Environment Configuration
- * Enforces production API URL provisioning and prevents silent fallbacks to localhost.
+ * Enforces production API URL provisioning and prevents silent fallbacks to localhost or static frontend domain.
  */
 
 const rawApiUrl =
@@ -27,19 +27,49 @@ function resolveApiBaseUrl(): string {
     if (runtimeUrl && typeof runtimeUrl === 'string' && runtimeUrl.trim()) {
       return runtimeUrl.trim().replace(/\/+$/, '');
     }
+
+    // If running on Render frontend domain, automatically target the live Render backend service
+    if (window.location.hostname.includes('brandx-frontend.onrender.com') || window.location.hostname.includes('onrender.com')) {
+      return 'https://brandx-backend-okj8.onrender.com/api/v1';
+    }
   }
 
   if (isProduction) {
-    console.error(
-      '[CRITICAL] VITE_API_URL is missing in production build! Set VITE_API_URL in Render frontend environment variables to point to your backend service.'
-    );
-    // In production, never silently fall back to localhost
-    return window.location.origin ? `${window.location.origin}/api/v1` : '';
+    if (typeof window !== 'undefined' && window.location.origin) {
+      return `${window.location.origin}/api/v1`;
+    }
   }
 
   return 'http://localhost:5000/api/v1';
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
+
+export function resolveBackendOrigin(): string {
+  try {
+    if (API_BASE_URL) {
+      const parsed = new URL(
+        API_BASE_URL,
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000'
+      );
+      if (
+        typeof window !== 'undefined' &&
+        parsed.origin === window.location.origin &&
+        window.location.hostname.includes('brandx-frontend.onrender.com')
+      ) {
+        return 'https://brandx-backend-okj8.onrender.com';
+      }
+      return parsed.origin;
+    }
+  } catch {}
+
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    return 'https://brandx-backend-okj8.onrender.com';
+  }
+
+  return 'http://localhost:5000';
+}
+
+export const BACKEND_ORIGIN = resolveBackendOrigin();
 
 export const isProd = isProduction;

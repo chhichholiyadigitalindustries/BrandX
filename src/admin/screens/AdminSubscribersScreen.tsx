@@ -204,10 +204,13 @@ export const AdminSubscribersScreen: React.FC = () => {
                 </tr>
               ) : (
                 subscribers.map((sub) => {
-                  const daysLeft = Math.ceil(
-                    (new Date(sub.expiryDate).getTime() - new Date('2026-09-16T00:00:00Z').getTime()) /
-                      (1000 * 60 * 60 * 24)
-                  );
+                  const expiryTimestamp =
+                    sub.expiryDate && sub.expiryDate !== 'Not available' && sub.expiryDate !== 'N/A'
+                      ? new Date(sub.expiryDate).getTime()
+                      : 0;
+                  const daysLeft = expiryTimestamp
+                    ? Math.ceil((expiryTimestamp - Date.now()) / (1000 * 60 * 60 * 24))
+                    : 0;
                   return (
                     <tr key={sub.id} className="hover:bg-white/5 transition-colors">
                       <td className="py-3.5 px-4">
@@ -241,13 +244,13 @@ export const AdminSubscribersScreen: React.FC = () => {
 
                       <td className="py-3.5 px-4 font-mono">
                         <p className="text-gray-200">{sub.expiryDate.split('T')[0]}</p>
-                        {sub.status === 'active' && (
+                        {sub.status === 'active' && expiryTimestamp > 0 && (
                           <span
                             className={`text-[10px] font-bold ${
                               daysLeft <= 7 ? 'text-amber-400' : 'text-gray-400'
                             }`}
                           >
-                            {daysLeft > 0 ? `(${daysLeft}d left)` : '(Expires today)'}
+                            {daysLeft > 0 ? `(${daysLeft}d left)` : '(Expired)'}
                           </span>
                         )}
                       </td>

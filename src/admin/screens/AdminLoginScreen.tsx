@@ -41,8 +41,12 @@ export const AdminLoginScreen: React.FC = () => {
       <div className="w-full max-w-md bg-[#0E1424] border border-white/15 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 animate-scale-in">
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-[#005338] to-[#008f62] flex items-center justify-center shadow-lg border border-white/20 mb-3">
-            <span className="font-black text-white text-2xl tracking-wider">BX</span>
+          <div className="w-16 h-16 mx-auto rounded-2xl p-1 bg-gradient-to-br from-[#005338] to-[#008f62] flex items-center justify-center shadow-xl border border-white/20 mb-3 overflow-hidden">
+            <img
+              src="/brandx-logo.png"
+              alt="BrandX Official Logo"
+              className="w-full h-full object-contain rounded-xl bg-[#0B0F19]"
+            />
           </div>
           <h1 className="font-black text-2xl text-white tracking-tight">BRANDX ADMIN</h1>
           <p className="text-xs text-emerald-400 font-semibold mt-1">Super App Central Administration Portal</p>

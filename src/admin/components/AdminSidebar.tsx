@@ -6,6 +6,7 @@
 import React from 'react';
 import { useAdminNavigation, AdminRoute } from '../context/AdminNavigationContext';
 import { useAdminAuth } from '../context/AdminAuthContext';
+import { resolveImageUrl } from '../../utils/imageUrl';
 
 interface NavItem {
   route: AdminRoute;
@@ -248,7 +249,7 @@ export const AdminSidebar: React.FC = () => {
           >
             <div className="relative shrink-0">
               <img
-                src={admin?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
+                src={admin?.avatarUrl ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
                 alt="Admin Avatar"
                 className="w-9 h-9 rounded-xl object-cover border border-white/20 group-hover:border-emerald-500/50 transition-colors"
               />

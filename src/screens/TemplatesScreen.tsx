@@ -8,6 +8,8 @@ import { generateDailySuvichar } from '../services/geminiService';
 import { shareDailyPosterToWhatsApp, generateBrandedPosterBlob } from '../utils/posterShare';
 import { WhatsAppShareGuideModal } from '../components/WhatsAppShareGuideModal';
 import { dailyContentApi } from '../services/dailyContentApi';
+import { resolveImageUrl } from '../utils/imageUrl';
+import { getIndiaDateString } from '../utils/timezone';
 
 interface TemplatesScreenProps {
   business?: BusinessProfile;
@@ -79,12 +81,12 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
     let isMounted = true;
     async function fetchCmsData() {
       try {
-        const todayDate = new Date();
-        const tomorrowDate = new Date(todayDate.getTime() + 24 * 60 * 60 * 1000);
-        const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
+        const todayStr = getIndiaDateString();
+        const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const tomorrowDateStr = getIndiaDateString(tomorrowDate);
 
         const [todayRes, tomorrowList, fests, postersRes, catsRes] = await Promise.all([
-          dailyContentApi.getTodayContent(),
+          dailyContentApi.getTodayContent({ date: todayStr }),
           dailyContentApi.getContentByDate(tomorrowDateStr),
           dailyContentApi.listFestivals(),
           dailyContentApi.listPosters({
@@ -103,7 +105,7 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
               title: todayRes.title,
               category: 'Daily Suvichar',
               dateLabel: `आज (${todayHindiDate})`,
-              imageUrl: todayRes.imageUrl,
+              imageUrl: resolveImageUrl(todayRes.imageUrl),
               headline: todayRes.headline || todayRes.title,
               subheadline: todayRes.quoteHindi || todayRes.contentText || '',
               quoteHindi: todayRes.quoteHindi || todayRes.contentText || undefined,
@@ -121,7 +123,7 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
               title: t.title,
               category: 'Daily Suvichar',
               dateLabel: `कल (${tomorrowFormatted})`,
-              imageUrl: t.imageUrl,
+              imageUrl: resolveImageUrl(t.imageUrl),
               headline: t.headline || t.title,
               subheadline: t.quoteHindi || t.contentText || '',
               quoteHindi: t.quoteHindi || t.contentText || undefined,
@@ -139,7 +141,7 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
               title: f.name,
               category: 'Festival',
               dateLabel: f.festivalDate ? f.festivalDate.split('T')[0] : 'Upcoming',
-              imageUrl: f.imageUrl || f.bannerUrl || POSTER_IMAGES.morningSuvichar || '',
+              imageUrl: resolveImageUrl(f.imageUrl || f.bannerUrl || POSTER_IMAGES.morningSuvichar || ''),
               headline: f.hindiName || f.name,
               subheadline: f.description || 'Festive greetings for your business',
               quoteHindi: f.description || undefined,
@@ -159,7 +161,7 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
               categoryIcon: '🎨',
               tier: p.tier,
               format: (p.aspectRatio === '9:16' ? 'Story 9:16' : '1:1 Sq') as any,
-              imageUrl: p.imageUrl,
+              imageUrl: resolveImageUrl(p.imageUrl),
               headlineDefault: p.title,
               subheadlineDefault: p.description || undefined,
             }))
@@ -640,7 +642,7 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
                     >
                       <div className="relative aspect-square overflow-hidden bg-slate-900">
                         <img
-                          src={template.imageUrl}
+                          src={resolveImageUrl(template.imageUrl)}
                           alt={template.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           loading="lazy"
@@ -812,7 +814,7 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
                   >
                     <div className="relative aspect-[16/10] overflow-hidden bg-slate-900">
                       <img
-                        src={cal.imageUrl}
+                        src={resolveImageUrl(cal.imageUrl)}
                         alt={cal.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-80"
                       />

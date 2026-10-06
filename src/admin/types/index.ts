@@ -106,6 +106,9 @@ export interface AdminDailyStatus {
   downloadsCount: number;
   tags: string[];
   authorAdminId: string;
+  tier?: 'FREE' | 'PRO' | 'ENTERPRISE';
+  status?: 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'ARCHIVED';
+  visibility?: 'PUBLIC' | 'PRO_ONLY' | 'PRIVATE';
   createdAt: string;
   updatedAt: string;
 }

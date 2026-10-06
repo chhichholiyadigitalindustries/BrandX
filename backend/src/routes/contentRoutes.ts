@@ -13,6 +13,7 @@ router.get('/festivals/:festivalId', contentController.getFestivalContent);
 router.get('/categories', contentController.listCategories);
 router.get('/posters', contentController.listPosters);
 router.get('/date/:date', contentController.getContentByDate);
+router.get('/media/*', contentController.streamMedia);
 
 // Event tracking
 router.post('/events', validateBody(trackContentEventSchema), contentController.trackEvent);

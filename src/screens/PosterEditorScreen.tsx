@@ -4,6 +4,7 @@ import { APP_IMAGES, POSTER_IMAGES } from '../data/mockData';
 import { shareImageToWhatsApp } from '../utils/posterShare';
 import { exportElementToPng } from '../utils/domToImage';
 import { WhatsAppShareGuideModal } from '../components/WhatsAppShareGuideModal';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 interface PosterEditorScreenProps {
   business: BusinessProfile;
@@ -278,7 +279,7 @@ export const PosterEditorScreen: React.FC<PosterEditorScreenProps> = ({
             {showBrandStamp ? (
               <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
                 <img
-                  src={business.logoUrl || APP_IMAGES.logo}
+                  src={resolveImageUrl(business.logoUrl || APP_IMAGES.logo)}
                   alt="Shop Logo"
                   className="w-5 h-5 rounded-full object-cover bg-white"
                 />

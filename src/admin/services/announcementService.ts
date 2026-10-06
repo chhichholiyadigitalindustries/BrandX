@@ -7,40 +7,7 @@ import { AdminAnnouncement } from '../types';
 
 const STORAGE_KEY = 'brandx_admin_announcements';
 
-const INITIAL_ANNOUNCEMENTS: AdminAnnouncement[] = [
-  {
-    id: 'ann_01',
-    title: '🎉 Naya Feature: Voice-to-Bill ab live hai!',
-    message: 'Ab aap bolkar direct GST Invoice bana sakte hain. AI Copilot me mic dabayein aur bill banayein.',
-    bannerUrl: '',
-    actionUrl: 'screen:copilot',
-    actionLabel: 'Try Voice-to-Bill',
-    priority: 'high',
-    targetAudience: 'all',
-    startDate: '2026-09-01',
-    endDate: '2026-09-30',
-    status: 'active',
-    viewsCount: 14200,
-    clicksCount: 3890,
-    createdAt: '2026-09-01',
-  },
-  {
-    id: 'ann_02',
-    title: '🪔 Navratri & Diwali Special Festival Posters Out',
-    message: 'Naye festival posters template library me add ho chuke hain. Apne customers ko WhatsApp par shubhkaamnayein bhejein.',
-    bannerUrl: '',
-    actionUrl: 'screen:templates',
-    actionLabel: 'View Templates',
-    priority: 'medium',
-    targetAudience: 'all',
-    startDate: '2026-09-10',
-    endDate: '2026-11-15',
-    status: 'active',
-    viewsCount: 9400,
-    clicksCount: 2850,
-    createdAt: '2026-09-10',
-  },
-];
+const INITIAL_ANNOUNCEMENTS: AdminAnnouncement[] = [];
 
 function getStoredAnnouncements(): AdminAnnouncement[] {
   if (typeof window === 'undefined') return INITIAL_ANNOUNCEMENTS;

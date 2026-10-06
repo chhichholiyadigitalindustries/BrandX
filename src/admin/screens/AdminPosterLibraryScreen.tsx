@@ -9,6 +9,7 @@ import { imageUploadService } from '../services/imageUploadService';
 import { AdminPoster } from '../types';
 import { useAdminToast } from '../components/AdminToast';
 import { AdminModal } from '../components/AdminModal';
+import { resolveImageUrl } from '../../utils/imageUrl';
 
 export const AdminPosterLibraryScreen: React.FC = () => {
   const [posters, setPosters] = useState<AdminPoster[]>([]);
@@ -188,7 +189,7 @@ export const AdminPosterLibraryScreen: React.FC = () => {
               {/* Thumbnail */}
               <div className="relative aspect-square w-full bg-black overflow-hidden">
                 <img
-                  src={poster.imageUrl}
+                  src={resolveImageUrl(poster.imageUrl)}
                   alt={poster.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
@@ -321,7 +322,7 @@ export const AdminPosterLibraryScreen: React.FC = () => {
               </label>
               {formImageUrl && (
                 <div className="mt-2 w-20 h-20 rounded-lg overflow-hidden border border-white/20">
-                  <img src={formImageUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={resolveImageUrl(formImageUrl)} alt="" className="w-full h-full object-cover" />
                 </div>
               )}
             </div>

@@ -43,18 +43,24 @@ export const AdminDashboardScreen: React.FC = () => {
     <div className="space-y-6">
       {/* Welcome Hero Banner */}
       <div className="bg-gradient-to-r from-[#005338] via-[#006e4a] to-[#0d2a45] rounded-3xl p-6 sm:p-8 border border-emerald-400/30 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="relative z-10 max-w-xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-bold mb-3 border border-white/15">
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
-            <span>All Systems Operational • Real-time MSME Pulse</span>
+        <div className="relative z-10 max-w-xl flex items-start gap-4">
+          <div className="w-14 h-14 rounded-2xl p-1 bg-white/10 border border-white/20 shadow-xl overflow-hidden shrink-0 hidden sm:flex items-center justify-center">
+            <img src="/brandx-logo.png" alt="BrandX" className="w-full h-full object-contain rounded-xl bg-[#0B0F19]" />
           </div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight leading-tight">
-            BrandX Executive Control Center
-          </h1>
-          <p className="text-xs sm:text-sm text-emerald-100/90 mt-1.5">
-            Powering Indian Vyaparis, Retailers &amp; MSMEs with AI Marketing, GST Billing &amp; Digital Khata.
-          </p>
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-bold mb-3 border border-white/15">
+              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+              <span>All Systems Operational • Real-time MSME Pulse</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight leading-tight">
+              BrandX Executive Control Center
+            </h1>
+            <p className="text-xs sm:text-sm text-emerald-100/90 mt-1.5">
+              Powering Indian Vyaparis, Retailers &amp; MSMEs with AI Marketing, GST Billing &amp; Digital Khata.
+            </p>
+          </div>
         </div>
+
 
         <div className="relative z-10 flex flex-wrap items-center gap-2.5 shrink-0">
           <button
