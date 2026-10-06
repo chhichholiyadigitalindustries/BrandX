@@ -31,6 +31,8 @@ export class MediaController {
       res.setHeader('Content-Length', asset.buffer.length);
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
       res.end(asset.buffer);
     } catch (error: any) {
       logger.error('Error streaming media asset:', error);
@@ -52,8 +54,8 @@ export class MediaController {
         return;
       }
 
-      // Strip data:image/...;base64, header if present
-      const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z+.-]+;base64,/, '');
+      // Strip data URL prefix if present (e.g. data:image/png;base64,)
+      const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
       const buffer = Buffer.from(cleanBase64, 'base64');
 
       if (!buffer || buffer.length === 0) {

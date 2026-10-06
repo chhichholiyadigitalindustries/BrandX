@@ -59,6 +59,8 @@ export const BusinessProfileSection: React.FC<BusinessProfileSectionProps> = ({
   const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    handleChange('logoUrl', objectUrl);
     setIsUploadingLogo(true);
     setStatusMessage(null);
     try {
@@ -204,7 +206,7 @@ export const BusinessProfileSection: React.FC<BusinessProfileSectionProps> = ({
             <div className="md:col-span-2 p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row items-center gap-4">
               <div className="relative w-20 h-20 rounded-2xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0 shadow-inner group">
                 <img
-                  src={resolveImageUrl(formData.logoUrl)}
+                  src={formData.logoUrl?.startsWith('blob:') ? formData.logoUrl : resolveImageUrl(formData.logoUrl)}
                   alt="Business Logo"
                   className="w-full h-full object-contain p-1"
                   onError={(e) => {

@@ -44,7 +44,8 @@ export const AdminProfileScreen: React.FC = () => {
       setName(admin.name || '');
       setEmail(admin.email || '');
       setPhone(admin.phone || '');
-      setAvatarUrl(admin.avatarUrl || '');
+      const rawAvatar = admin.avatarUrl || '';
+      setAvatarUrl(rawAvatar.startsWith('role:') ? '' : rawAvatar);
     }
   }, [admin]);
 
@@ -52,6 +53,9 @@ export const AdminProfileScreen: React.FC = () => {
   const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      // Immediate local preview so the admin immediately sees the newly selected image
+      const objectUrl = URL.createObjectURL(file);
+      setAvatarUrl(objectUrl);
       setIsUploadingAvatar(true);
       try {
         const res = await imageUploadService.uploadImage(file, 'avatars');
@@ -87,17 +91,25 @@ export const AdminProfileScreen: React.FC = () => {
       return;
     }
 
+    const cleanAvatar = avatarUrl.trim();
+    if (cleanAvatar.startsWith('blob:')) {
+      showToast('Please wait for image upload to complete before saving', 'error');
+      return;
+    }
+
     setIsSavingProfile(true);
     const res = await adminAuthService.updateProfile({
       name: cleanName,
       email: cleanEmail,
       phone: cleanPhone || null,
-      avatarUrl: avatarUrl.trim() || null,
+      avatarUrl: cleanAvatar.startsWith('role:') ? null : (cleanAvatar || null),
     });
     setIsSavingProfile(false);
 
     if (res.success && res.data) {
       updateAdmin(res.data);
+      const updatedAvatar = res.data.avatarUrl || '';
+      setAvatarUrl(updatedAvatar.startsWith('role:') ? '' : updatedAvatar);
       showToast('Admin profile updated successfully in PostgreSQL!');
     } else {
       showToast(res.error || 'Failed to update profile', 'error');
@@ -158,8 +170,15 @@ export const AdminProfileScreen: React.FC = () => {
           {/* Avatar & Upload Trigger */}
           <div className="relative group shrink-0">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden border-2 border-white/20 shadow-xl bg-[#131b2e] flex items-center justify-center">
-              {avatarUrl ? (
-                <img src={resolveImageUrl(avatarUrl)} alt={admin?.name} className="w-full h-full object-cover" />
+              {avatarUrl && !avatarUrl.startsWith('role:') ? (
+                <img
+                  src={avatarUrl.startsWith('blob:') || avatarUrl.startsWith('data:') ? avatarUrl : resolveImageUrl(avatarUrl)}
+                  alt={admin?.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
+                  }}
+                />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-3xl font-extrabold text-white">
                   {name ? name.slice(0, 2).toUpperCase() : 'BX'}

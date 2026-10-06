@@ -28,49 +28,19 @@ export const imageUploadService = {
       throw new Error('Kripya valid image file (.png, .jpg, .webp) select karein.');
     }
 
-    try {
-      // 1. Try universal media upload endpoint
-      const mediaRes = await mediaApi.uploadImage(file, folder as any);
-      if (mediaRes?.url) {
-        return {
-          url: mediaRes.url,
-          filename: file.name,
-          sizeBytes: mediaRes.sizeBytes || file.size,
-          mimeType: mediaRes.mimeType || file.type,
-          key: mediaRes.key,
-          id: mediaRes.id,
-        };
-      }
-    } catch {
-      // Fall through to adminDailyContentApi
-    }
-
-    // 2. Direct fallback to adminDailyContentApi
-    const base64Data = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = () => reject(new Error('Image reading me samasya aayi'));
-      reader.readAsDataURL(file);
-    });
-
-    const backendRes = await adminDailyContentApi.uploadImage(
-      base64Data,
-      file.name,
-      file.type,
-      folder
-    );
-
-    if (!backendRes?.url) {
-      throw new Error('Backend storage provider ne valid permanent URL return nahi kiya.');
+    // Upload directly to PostgreSQL MediaAsset storage pipeline
+    const mediaRes = await mediaApi.uploadImage(file, folder as any);
+    if (!mediaRes?.url) {
+      throw new Error('Backend storage provider ne valid permanent media reference return nahi kiya.');
     }
 
     return {
-      url: backendRes.url,
+      url: mediaRes.url,
       filename: file.name,
-      sizeBytes: file.size,
-      mimeType: file.type,
-      key: backendRes.key,
-      id: backendRes.id,
+      sizeBytes: mediaRes.sizeBytes || file.size,
+      mimeType: mediaRes.mimeType || file.type,
+      key: mediaRes.key,
+      id: mediaRes.id,
     };
   },
 

@@ -206,6 +206,9 @@ export class LocalStorageProvider implements StorageProvider {
       .replace(/%5c/gi, '\\')
       .replace(/\0/g, '')
       .replace(/^\/+/, '')
+      .replace(/^api\/v1\/media\/?/i, '')
+      .replace(/^media\/?/i, '')
+      .replace(/^uploads\/?/i, '')
       .trim();
 
     if (!cleanInput) return null;

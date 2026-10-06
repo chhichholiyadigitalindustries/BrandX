@@ -127,9 +127,12 @@ export const AdminHeader: React.FC = () => {
             type="button"
           >
             <img
-              src={admin?.avatarUrl ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
-              alt="Admin"
+              src={admin?.avatarUrl && !admin.avatarUrl.startsWith('role:') ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
+              alt={admin?.name || 'Admin'}
               className="w-8 h-8 rounded-lg object-cover border border-white/20 shrink-0"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
+              }}
             />
             <span className="material-symbols-outlined text-gray-400 text-[18px] hidden sm:block">
               keyboard_arrow_down

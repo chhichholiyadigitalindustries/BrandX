@@ -27,6 +27,18 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const current = adminAuthService.getCurrentAdmin();
     setAdmin(current);
     setIsLoading(false);
+
+    // Rehydrate latest profile state from PostgreSQL
+    if (adminAuthService.getAdminToken()) {
+      adminAuthService
+        .getProfile()
+        .then((res) => {
+          if (res.success && res.data) {
+            setAdmin(res.data);
+          }
+        })
+        .catch(() => null);
+    }
   }, []);
 
   const login = async (email: string, pass: string, remember: boolean = true) => {

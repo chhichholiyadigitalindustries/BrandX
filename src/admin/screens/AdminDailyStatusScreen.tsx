@@ -31,6 +31,8 @@ export const AdminDailyStatusScreen: React.FC = () => {
   const [formCategory, setFormCategory] = useState<'suvichar' | 'morning' | 'festival' | 'business_tip' | 'motivation'>('suvichar');
   const [formTier, setFormTier] = useState<'FREE' | 'PRO'>('FREE');
   const [formImageUrl, setFormImageUrl] = useState('');
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const [previewLoadError, setPreviewLoadError] = useState(false);
   const [formIsActive, setFormIsActive] = useState(true);
 
   const loadData = async () => {
@@ -65,6 +67,8 @@ export const AdminDailyStatusScreen: React.FC = () => {
     setFormCategory('suvichar');
     setFormTier('FREE');
     setFormImageUrl('');
+    setLocalPreviewUrl(null);
+    setPreviewLoadError(false);
     setFormIsActive(true);
   };
 
@@ -81,12 +85,19 @@ export const AdminDailyStatusScreen: React.FC = () => {
     setFormCategory(item.category);
     setFormTier(item.tier === 'PRO' ? 'PRO' : 'FREE');
     setFormImageUrl(item.imageUrl);
+    setLocalPreviewUrl(null);
+    setPreviewLoadError(false);
     setFormIsActive(item.isActive);
   };
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      // Create local blob preview URL for 0ms instantaneous rendering
+      const objectUrl = URL.createObjectURL(file);
+      setLocalPreviewUrl(objectUrl);
+      setPreviewLoadError(false);
+
       setIsUploading(true);
       try {
         const res = await imageUploadService.uploadImage(file, 'daily-status');
@@ -159,7 +170,7 @@ export const AdminDailyStatusScreen: React.FC = () => {
         quoteHindi: formQuoteHindi,
         quoteEnglish: formQuoteEnglish,
         quoteHinglish: formQuoteHinglish,
-        imageUrl: formImageUrl,
+        imageUrl: localPreviewUrl || formImageUrl,
         date: formDate,
         category: formCategory,
         tier: formTier,
@@ -327,6 +338,39 @@ export const AdminDailyStatusScreen: React.FC = () => {
                     className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
                   />
                 </div>
+
+                {(localPreviewUrl || formImageUrl) && (
+                  <div className="mt-3 flex items-center gap-3 bg-black/40 p-2.5 rounded-xl border border-white/10">
+                    <div className="w-16 h-24 rounded-lg overflow-hidden border border-emerald-500/40 bg-black shrink-0 relative">
+                      <img
+                        src={localPreviewUrl || resolveImageUrl(formImageUrl)}
+                        alt="Poster Preview"
+                        className="w-full h-full object-cover"
+                        onError={() => setPreviewLoadError(true)}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        <span>Poster Image Loaded</span>
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-mono truncate">
+                        {formImageUrl || 'Local image selected for upload'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLocalPreviewUrl(null);
+                          setFormImageUrl('');
+                          setPreviewLoadError(false);
+                        }}
+                        className="text-[11px] text-rose-400 hover:text-rose-300 underline font-semibold cursor-pointer"
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Submit & Publish */}
@@ -456,14 +500,27 @@ export const AdminDailyStatusScreen: React.FC = () => {
             {/* Mobile Phone Mockup */}
             <div className="relative w-full aspect-[9/16] rounded-3xl overflow-hidden shadow-2xl border-4 border-[#1e293b] bg-black flex flex-col justify-between p-4 text-white">
               {/* Poster Background Image */}
-              {activeDisplayItem?.imageUrl ? (
+              {activeDisplayItem?.imageUrl && !previewLoadError ? (
                 <img
-                  src={resolveImageUrl(activeDisplayItem.imageUrl)}
+                  src={
+                    activeDisplayItem.imageUrl.startsWith('blob:') || activeDisplayItem.imageUrl.startsWith('data:')
+                      ? activeDisplayItem.imageUrl
+                      : resolveImageUrl(activeDisplayItem.imageUrl)
+                  }
                   alt="Live Poster"
-                  className="absolute inset-0 w-full h-full object-cover brightness-[0.75]"
+                  className="absolute inset-0 w-full h-full object-cover brightness-[0.80]"
+                  onError={() => {
+                    console.warn('[POSTER_PREVIEW_LOAD_ERROR] Failed:', activeDisplayItem.imageUrl);
+                    setPreviewLoadError(true);
+                  }}
                 />
               ) : (
-                <div className="absolute inset-0 bg-gradient-to-b from-[#0E1424] via-[#131b2e] to-[#0A0D18]" />
+                <div className="absolute inset-0 bg-gradient-to-b from-[#0E1424] via-[#131b2e] to-[#0A0D18] flex items-center justify-center">
+                  <div className="text-center p-4">
+                    <span className="material-symbols-outlined text-4xl text-gray-600 mb-1">add_photo_alternate</span>
+                    <p className="text-[11px] text-gray-400 font-medium">9:16 WhatsApp Poster Preview</p>
+                  </div>
+                </div>
               )}
 
               {/* Gradient Overlays */}

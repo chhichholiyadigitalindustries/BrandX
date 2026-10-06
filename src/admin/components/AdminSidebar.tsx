@@ -249,9 +249,12 @@ export const AdminSidebar: React.FC = () => {
           >
             <div className="relative shrink-0">
               <img
-                src={admin?.avatarUrl ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
+                src={admin?.avatarUrl && !admin.avatarUrl.startsWith('role:') ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
                 alt="Admin Avatar"
                 className="w-9 h-9 rounded-xl object-cover border border-white/20 group-hover:border-emerald-500/50 transition-colors"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
+                }}
               />
               <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#0E1424]" />
             </div>

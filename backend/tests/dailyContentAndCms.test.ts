@@ -276,7 +276,7 @@ export async function runDailyContentAndCmsTests() {
     folder: 'test-content',
   });
 
-  if (!uploadRes.url.startsWith('/uploads/test-content/')) {
+  if (!uploadRes.url.startsWith('/api/v1/media/test-content/') && !uploadRes.url.startsWith('/uploads/test-content/')) {
     throw new Error(`Upload url prefix incorrect: ${uploadRes.url}`);
   }
   const deleted = await storage.deleteFile(uploadRes.key);

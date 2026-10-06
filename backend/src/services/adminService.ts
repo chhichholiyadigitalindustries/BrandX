@@ -470,12 +470,13 @@ export class AdminService {
   async getAdminProfile(adminId: string) {
     const admin = await adminRepository.findById(adminId);
     if (!admin) throw new Error('Admin user not found');
+    const avatar = admin.avatarUrl && !admin.avatarUrl.startsWith('role:') ? admin.avatarUrl : null;
     return {
       id: admin.id,
       name: admin.name,
       email: admin.email,
       phone: admin.phone,
-      avatarUrl: admin.avatarUrl,
+      avatarUrl: avatar,
       role: admin.role,
       status: admin.status,
       isActive: admin.isActive,
@@ -496,7 +497,10 @@ export class AdminService {
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name.trim();
     if (data.phone !== undefined) updateData.phone = data.phone ? data.phone.trim() : null;
-    if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl ? data.avatarUrl.trim() : null;
+    if (data.avatarUrl !== undefined) {
+      const clean = data.avatarUrl ? data.avatarUrl.trim() : null;
+      updateData.avatarUrl = clean && !clean.startsWith('role:') ? clean : null;
+    }
 
     if (data.email !== undefined) {
       const normalizedEmail = data.email.trim().toLowerCase();

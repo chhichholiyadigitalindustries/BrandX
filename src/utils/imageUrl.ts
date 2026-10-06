@@ -22,7 +22,7 @@ export function resolveImageUrl(url: string | null | undefined): string {
   }
 
   const trimmed = url.trim();
-  if (!trimmed) {
+  if (!trimmed || trimmed.startsWith('role:')) {
     return '';
   }
 
@@ -72,51 +72,45 @@ export function resolveImageUrl(url: string | null | undefined): string {
   }
 
   // 5. If already an absolute HTTP/HTTPS URL
+  let resolved = '';
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return trimmed;
+    resolved = trimmed;
+  } else if (trimmed.startsWith('/uploads/')) {
+    // 6. Handle /uploads/... or uploads/...
+    resolved = `${origin}${trimmed}`;
+  } else if (trimmed.startsWith('uploads/')) {
+    resolved = `${origin}/${trimmed}`;
+  } else if (trimmed.startsWith('/api/v1/')) {
+    // 7. Handle /api/v1/... or api/v1/...
+    resolved = `${origin}${trimmed}`;
+  } else if (trimmed.startsWith('api/v1/')) {
+    resolved = `${origin}/${trimmed}`;
+  } else if (trimmed.startsWith('/media/')) {
+    // 8. Handle /media/... or media/...
+    resolved = `${origin}/api/v1${trimmed}`;
+  } else if (trimmed.startsWith('media/')) {
+    resolved = `${origin}/api/v1/${trimmed}`;
+  } else {
+    // 9. Handle MediaAsset database keys (folder/filename)
+    const isMediaKey = /^(daily-content|daily-status|posters|festivals|logos|avatars|announcements|general)\/[a-zA-Z0-9_.-]+$/i.test(trimmed);
+    // 10. Handle MediaAsset UUID identifiers
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+
+    if (isMediaKey || isUuid) {
+      resolved = `${origin}/api/v1/media/${trimmed}`;
+    } else if (trimmed.startsWith('/')) {
+      // 11. Generic relative path starting with /
+      resolved = `${origin}${trimmed}`;
+    } else {
+      // 12. Fallback
+      resolved = `${origin}/${trimmed}`;
+    }
   }
 
-  // 6. Handle /uploads/... or uploads/...
-  if (trimmed.startsWith('/uploads/')) {
-    return `${origin}${trimmed}`;
-  }
-  if (trimmed.startsWith('uploads/')) {
-    return `${origin}/${trimmed}`;
+  // Diagnostics logging
+  if (typeof window !== 'undefined' && ((window as any).__BRANDX_DEBUG_IMAGES__ || import.meta.env?.DEV)) {
+    console.debug(`[IMAGE_RESOLVE] input=${trimmed} backend=${origin} output=${resolved}`);
   }
 
-  // 7. Handle /api/v1/... or api/v1/...
-  if (trimmed.startsWith('/api/v1/')) {
-    return `${origin}${trimmed}`;
-  }
-  if (trimmed.startsWith('api/v1/')) {
-    return `${origin}/${trimmed}`;
-  }
-
-  // 8. Handle /media/... or media/...
-  if (trimmed.startsWith('/media/')) {
-    return `${origin}/api/v1${trimmed}`;
-  }
-  if (trimmed.startsWith('media/')) {
-    return `${origin}/api/v1/${trimmed}`;
-  }
-
-  // 9. Handle MediaAsset database keys (folder/filename)
-  const isMediaKey = /^(daily-content|daily-status|posters|festivals|logos|avatars|announcements|general)\/[a-zA-Z0-9_.-]+$/i.test(trimmed);
-  if (isMediaKey) {
-    return `${origin}/api/v1/media/${trimmed}`;
-  }
-
-  // 10. Handle MediaAsset UUID identifiers (e.g., a5b268ff-cda5-48e4-b163-6d3eb2421fa7)
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
-  if (isUuid) {
-    return `${origin}/api/v1/media/${trimmed}`;
-  }
-
-  // 11. Generic relative path starting with /
-  if (trimmed.startsWith('/')) {
-    return `${origin}${trimmed}`;
-  }
-
-  // 12. Fallback
-  return `${origin}/${trimmed}`;
+  return resolved;
 }
