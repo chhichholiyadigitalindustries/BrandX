@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ScreenId, BusinessProfile } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { resolveImageUrl } from '../utils/imageUrl';
 
 interface HeaderProps {
   currentScreen: ScreenId;
@@ -159,7 +160,7 @@ export const Header: React.FC<HeaderProps> = ({
               <img
                 alt="Profile"
                 className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-500/40 bg-slate-800"
-                src={business?.logoUrl || '/brandx-logo.png'}
+                src={resolveImageUrl(business?.logoUrl || '/brandx-logo.png')}
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
                 }}

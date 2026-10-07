@@ -163,7 +163,7 @@ export const PublicStoreView: React.FC<PublicStoreViewProps> = ({ slug }) => {
         <div className="relative h-44 w-full bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 overflow-hidden">
           {store.coverImageUrl ? (
             <img
-              src={store.coverImageUrl}
+              src={resolveImageUrl(store.coverImageUrl)}
               alt={store.title}
               className="w-full h-full object-cover opacity-75"
             />
@@ -380,7 +380,7 @@ export const PublicStoreView: React.FC<PublicStoreViewProps> = ({ slug }) => {
                     className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 flex gap-3 items-start hover:border-slate-700 transition-all shadow-sm"
                   >
                     <img
-                      src={p.imageUrl || '/brandx-logo.png'}
+                      src={resolveImageUrl(p.imageUrl || '/brandx-logo.png')}
                       alt={p.name}
                       className="w-20 h-20 object-cover rounded-xl shrink-0 bg-slate-950 border border-slate-800"
                     />

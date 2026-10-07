@@ -106,6 +106,8 @@ export function createApp(): Express {
         res.setHeader('Content-Length', asset.buffer.length);
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
         return res.end(asset.buffer);
       }
     } catch {

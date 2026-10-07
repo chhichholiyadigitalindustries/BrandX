@@ -260,7 +260,7 @@ export const PosterEditorScreen: React.FC<PosterEditorScreenProps> = ({
         >
           {/* Background Image Layer */}
           <img
-            src={bgImage}
+            src={resolveImageUrl(bgImage)}
             alt="Poster Background"
             className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
           />

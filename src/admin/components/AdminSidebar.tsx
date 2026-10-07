@@ -249,6 +249,7 @@ export const AdminSidebar: React.FC = () => {
           >
             <div className="relative shrink-0">
               <img
+                key={admin?.avatarUrl || 'sidebar-avatar'}
                 src={admin?.avatarUrl && !admin.avatarUrl.startsWith('role:') ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
                 alt="Admin Avatar"
                 className="w-9 h-9 rounded-xl object-cover border border-white/20 group-hover:border-emerald-500/50 transition-colors"

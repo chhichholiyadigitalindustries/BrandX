@@ -54,6 +54,10 @@ export const AdminDailyStatusScreen: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    setPreviewLoadError(false);
+  }, [activeDisplayItem?.imageUrl]);
+
   const openNewForm = () => {
     setIsEditing(true);
     setSelectedItem(null);
@@ -346,7 +350,9 @@ export const AdminDailyStatusScreen: React.FC = () => {
                         src={localPreviewUrl || resolveImageUrl(formImageUrl)}
                         alt="Poster Preview"
                         className="w-full h-full object-cover"
-                        onError={() => setPreviewLoadError(true)}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
+                        }}
                       />
                     </div>
                     <div className="min-w-0 flex-1 space-y-1">
@@ -422,7 +428,10 @@ export const AdminDailyStatusScreen: React.FC = () => {
                   {items.map((item) => (
                     <div
                       key={item.id}
-                      onClick={() => setSelectedItem(item)}
+                      onClick={() => {
+                        setSelectedItem(item);
+                        setPreviewLoadError(false);
+                      }}
                       className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         selectedItem?.id === item.id
                           ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg'

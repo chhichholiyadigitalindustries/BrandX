@@ -127,6 +127,7 @@ export const AdminHeader: React.FC = () => {
             type="button"
           >
             <img
+              key={admin?.avatarUrl || 'header-avatar'}
               src={admin?.avatarUrl && !admin.avatarUrl.startsWith('role:') ? resolveImageUrl(admin.avatarUrl) : '/brandx-logo.png'}
               alt={admin?.name || 'Admin'}
               className="w-8 h-8 rounded-lg object-cover border border-white/20 shrink-0"

@@ -1207,7 +1207,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                           </div>
 
                           <img
-                            src={item.imageUrl || APP_IMAGES.weddingTemplate}
+                            src={resolveImageUrl(item.imageUrl || APP_IMAGES.weddingTemplate)}
                             alt={item.name}
                             className="w-12 h-12 rounded-xl object-cover shrink-0 border border-white/10"
                           />
@@ -1287,7 +1287,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                     {/* Store Banner */}
                     <div className="relative h-24 w-full bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900 overflow-hidden">
                       <img
-                        src={store?.coverImageUrl || APP_IMAGES.storeBanner}
+                        src={resolveImageUrl(store?.coverImageUrl || APP_IMAGES.storeBanner)}
                         alt="Store Banner"
                         className="w-full h-full object-cover opacity-60"
                       />
@@ -1412,7 +1412,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                                   className="p-2 rounded-xl bg-slate-900/90 border border-slate-800 flex gap-2 items-start"
                                 >
                                   <img
-                                    src={p.imageUrl || APP_IMAGES.weddingTemplate}
+                                    src={resolveImageUrl(p.imageUrl || APP_IMAGES.weddingTemplate)}
                                     alt={p.name}
                                     className="w-12 h-12 object-cover rounded-lg shrink-0"
                                   />
@@ -1771,7 +1771,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                     >
                       <div className="flex gap-3 items-start">
                         <img
-                          src={p.imageUrl || APP_IMAGES.weddingTemplate}
+                          src={resolveImageUrl(p.imageUrl || APP_IMAGES.weddingTemplate)}
                           alt={p.name}
                           className="w-18 h-18 rounded-xl object-cover shrink-0 border border-white/10"
                         />
@@ -2226,7 +2226,7 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <img
-                          src={product.imageUrl || APP_IMAGES.weddingTemplate}
+                          src={resolveImageUrl(product.imageUrl || APP_IMAGES.weddingTemplate)}
                           alt={product.name}
                           className="w-11 h-11 rounded-xl object-cover shrink-0 border border-white/10"
                         />

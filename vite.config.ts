@@ -56,6 +56,7 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /.*\/api\/v1\/.*/],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -95,9 +96,9 @@ export default defineConfig(() => {
                   maxAgeSeconds: 60 * 60 * 24 * 7,
                 },
                 cacheableResponse: {
-                  statuses: [200],
+                  statuses: [0, 200],
                 },
-                networkTimeoutSeconds: 3,
+                networkTimeoutSeconds: 15,
               },
             },
             {
@@ -110,9 +111,9 @@ export default defineConfig(() => {
                   maxAgeSeconds: 60 * 60 * 24 * 7,
                 },
                 cacheableResponse: {
-                  statuses: [200],
+                  statuses: [0, 200],
                 },
-                networkTimeoutSeconds: 3,
+                networkTimeoutSeconds: 15,
               },
             },
           ],

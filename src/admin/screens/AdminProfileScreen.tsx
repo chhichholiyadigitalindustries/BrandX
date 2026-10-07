@@ -172,6 +172,7 @@ export const AdminProfileScreen: React.FC = () => {
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden border-2 border-white/20 shadow-xl bg-[#131b2e] flex items-center justify-center">
               {avatarUrl && !avatarUrl.startsWith('role:') ? (
                 <img
+                  key={avatarUrl || 'profile-avatar'}
                   src={avatarUrl.startsWith('blob:') || avatarUrl.startsWith('data:') ? avatarUrl : resolveImageUrl(avatarUrl)}
                   alt={admin?.name}
                   className="w-full h-full object-cover"
