@@ -268,12 +268,13 @@ export const dailyContentApi = {
   },
 
   /**
-   * List marketing posters from CMS
+   * List marketing posters from CMS (derived from DailyContent single source of truth)
    */
   async listPosters(params?: {
     page?: number;
     limit?: number;
     categoryId?: string;
+    category?: string;
     festivalId?: string;
     language?: string;
     contentType?: string;
@@ -285,6 +286,7 @@ export const dailyContentApi = {
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.categoryId) searchParams.append('categoryId', params.categoryId);
+    if (params?.category) searchParams.append('category', params.category);
     if (params?.festivalId) searchParams.append('festivalId', params.festivalId);
     if (params?.language) searchParams.append('language', params.language);
     if (params?.contentType) searchParams.append('contentType', params.contentType);
@@ -293,7 +295,10 @@ export const dailyContentApi = {
     if (params?.search) searchParams.append('search', params.search);
 
     const qs = searchParams.toString() ? `?${searchParams.toString()}` : '';
-    const res = await fetch(`${BASE_URL}/daily-content/posters${qs}`);
+    let res = await fetch(`${BASE_URL}/daily-content/posters${qs}`);
+    if (!res.ok) {
+      res = await fetch(`${BASE_URL}/marketing-posters${qs}`);
+    }
     if (!res.ok) return { items: [], total: 0 };
 
     const data: ApiResponse<BackendContentAsset[]> = await res.json();
@@ -301,6 +306,24 @@ export const dailyContentApi = {
       items: data.data || [],
       total: (data as any).pagination?.total || (data.data?.length || 0),
     };
+  },
+
+  /**
+   * Alias for listPosters
+   */
+  async listMarketingPosters(params?: {
+    page?: number;
+    limit?: number;
+    categoryId?: string;
+    category?: string;
+    festivalId?: string;
+    language?: string;
+    contentType?: string;
+    aspectRatio?: string;
+    tier?: string;
+    search?: string;
+  }) {
+    return this.listPosters(params);
   },
 
   /**

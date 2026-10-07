@@ -12,6 +12,7 @@ router.get('/festivals', contentController.listFestivals);
 router.get('/festivals/:festivalId', contentController.getFestivalContent);
 router.get('/categories', contentController.listCategories);
 router.get('/posters', contentController.listPosters);
+router.get('/marketing-posters', contentController.listMarketingPosters);
 router.get('/date/:date', contentController.getContentByDate);
 router.get('/media/*', contentController.streamMedia);
 

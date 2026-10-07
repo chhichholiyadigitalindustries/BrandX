@@ -130,7 +130,8 @@ export class ContentController {
     try {
       const page = parseInt(req.query.page as string, 10) || 1;
       const limit = parseInt(req.query.limit as string, 10) || 30;
-      const categoryId = req.query.categoryId as string;
+      const categoryId = (req.query.categoryId || req.query.category) as string;
+      const category = req.query.category as string;
       const festivalId = req.query.festivalId as string;
       const language = req.query.language as string;
       const contentType = req.query.contentType as string;
@@ -142,6 +143,7 @@ export class ContentController {
         page,
         limit,
         categoryId,
+        category,
         festivalId,
         language,
         contentType,
@@ -149,10 +151,14 @@ export class ContentController {
         tier,
         search,
       });
-      sendPaginated(res, posters.items, posters.total, page, limit, 'Poster library retrieved');
+      sendPaginated(res, posters.items, posters.total, page, limit, 'Marketing posters retrieved');
     } catch (error: any) {
       sendError(res, error.message, 400);
     }
+  }
+
+  async listMarketingPosters(req: Request, res: Response): Promise<void> {
+    return this.listPosters(req, res);
   }
 
   async trackEvent(req: Request, res: Response): Promise<void> {

@@ -54,6 +54,20 @@ export const AdminPosterLibraryScreen: React.FC = () => {
 
   useEffect(() => {
     loadPosters();
+    const handleSync = () => loadPosters();
+    window.addEventListener('brandx:daily-content-updated', handleSync);
+    window.addEventListener('brandx:posters-updated', handleSync);
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('brandx_content_sync');
+      bc.onmessage = () => loadPosters();
+    } catch {}
+
+    return () => {
+      window.removeEventListener('brandx:daily-content-updated', handleSync);
+      window.removeEventListener('brandx:posters-updated', handleSync);
+      if (bc) bc.close();
+    };
   }, [selectedCategory, search]);
 
   const openCreateModal = () => {

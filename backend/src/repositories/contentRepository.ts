@@ -7,6 +7,7 @@ import {
   ContentAsset,
   ContentEvent,
   ContentType,
+  ContentTier,
   ContentEventType,
   Prisma,
 } from '@prisma/client';
@@ -384,7 +385,163 @@ export class ContentRepository {
   }
 
   /**
-   * List Poster Assets with database pagination
+   * List Marketing Posters derived from DailyContent (Single Source of Truth)
+   * Returns all eligible, published daily status posters as persistent marketing poster templates
+   */
+  async listMarketingPosters(params: {
+    page?: number;
+    limit?: number;
+    categoryId?: string;
+    category?: string;
+    festivalId?: string;
+    language?: string;
+    contentType?: string;
+    aspectRatio?: string;
+    tier?: string;
+    search?: string;
+    isPublished?: boolean;
+  }): Promise<{ items: any[]; total: number; page: number; limit: number }> {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 30));
+    const skip = (page - 1) * limit;
+    const now = new Date();
+
+    const where: Prisma.DailyContentWhereInput = {
+      isActive: true,
+      AND: [
+        { OR: [{ publishAt: null }, { publishAt: { lte: now } }] },
+        { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+      ],
+    };
+
+    if (params.isPublished !== undefined) {
+      where.isPublished = params.isPublished;
+    } else {
+      where.isPublished = true;
+    }
+
+    if (params.tier && params.tier !== 'all' && params.tier !== 'ALL') {
+      where.tier = params.tier.toUpperCase() as ContentTier;
+    }
+
+    if (params.aspectRatio && params.aspectRatio !== 'all' && params.aspectRatio !== 'ALL') {
+      where.aspectRatio = params.aspectRatio;
+    }
+
+    if (params.festivalId && params.festivalId !== 'all') {
+      where.festivalId = params.festivalId;
+    }
+
+    if (params.language && params.language !== 'all') {
+      where.language = params.language.toLowerCase();
+    }
+
+    const catFilter = params.categoryId || params.category;
+    if (catFilter && catFilter !== 'all' && catFilter !== 'All') {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(catFilter);
+      if (isUuid) {
+        where.categoryId = catFilter;
+      } else {
+        const cleanCat = catFilter.toLowerCase().trim();
+        const enumMatches: ContentType[] = [];
+        if (cleanCat.includes('suvichar')) enumMatches.push(ContentType.SUVICHAR);
+        if (cleanCat.includes('morning')) enumMatches.push(ContentType.MORNING_GREETING);
+        if (cleanCat.includes('fest')) enumMatches.push(ContentType.FESTIVAL);
+        if (cleanCat.includes('business')) enumMatches.push(ContentType.BUSINESS);
+        if (cleanCat.includes('motivat')) enumMatches.push(ContentType.MOTIVATIONAL);
+
+        const categoryConditions: Prisma.DailyContentWhereInput[] = [
+          { category: { contains: cleanCat, mode: 'insensitive' } },
+          { categoryRel: { name: { contains: cleanCat, mode: 'insensitive' } } },
+          { categoryRel: { slug: { contains: cleanCat, mode: 'insensitive' } } },
+        ];
+        if (enumMatches.length > 0) {
+          categoryConditions.push({ contentType: { in: enumMatches } });
+        }
+
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: categoryConditions },
+        ];
+      }
+    }
+
+    if (params.contentType && params.contentType !== 'all') {
+      const upper = params.contentType.toUpperCase();
+      if (Object.values(ContentType).includes(upper as ContentType)) {
+        where.contentType = upper as ContentType;
+      }
+    }
+
+    if (params.search) {
+      const s = params.search.trim();
+      const searchConditions: Prisma.DailyContentWhereInput[] = [
+        { title: { contains: s, mode: 'insensitive' } },
+        { headline: { contains: s, mode: 'insensitive' } },
+        { quoteHindi: { contains: s, mode: 'insensitive' } },
+        { quoteEnglish: { contains: s, mode: 'insensitive' } },
+        { quoteHinglish: { contains: s, mode: 'insensitive' } },
+        { description: { contains: s, mode: 'insensitive' } },
+        { contentText: { contains: s, mode: 'insensitive' } },
+        { category: { contains: s, mode: 'insensitive' } },
+        { tags: { has: s.toLowerCase() } },
+      ];
+
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { OR: searchConditions },
+      ];
+    }
+
+    const [dailyItems, totalCount] = await Promise.all([
+      prisma.dailyContent.findMany({
+        where,
+        orderBy: [{ isFeatured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+        skip,
+        take: limit,
+        include: {
+          categoryRel: true,
+          festival: true,
+        },
+      }),
+      prisma.dailyContent.count({ where }),
+    ]);
+
+    const formattedItems = dailyItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      headline: item.headline || item.title,
+      quoteHindi: item.quoteHindi || item.contentText || '',
+      quoteEnglish: item.quoteEnglish || null,
+      quoteHinglish: item.quoteHinglish || null,
+      description: item.description || item.quoteHindi || item.contentText || null,
+      imageUrl: item.imageUrl,
+      thumbnailUrl: item.thumbnailUrl || item.imageUrl,
+      category: item.categoryRel?.name || item.category || 'suvichar',
+      categoryId: item.categoryId,
+      contentType: item.contentType || 'SUVICHAR',
+      aspectRatio: item.aspectRatio || '9:16',
+      format: item.aspectRatio === '9:16' ? 'Story 9:16' : '1:1 Sq',
+      tier: item.tier || 'FREE',
+      isPublished: item.isPublished,
+      isActive: item.isActive,
+      isFeatured: item.isFeatured,
+      sharesCount: item.sharesCount || 0,
+      downloadsCount: item.downloadsCount || 0,
+      viewsCount: item.viewsCount || 0,
+      tags: item.tags || [],
+      date: item.date,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      categoryRel: item.categoryRel,
+      festival: item.festival,
+    }));
+
+    return { items: formattedItems, total: totalCount, page, limit };
+  }
+
+  /**
+   * List Poster Assets with database pagination (legacy alias)
    */
   async listContentAssets(params: {
     page?: number;
@@ -397,44 +554,8 @@ export class ContentRepository {
     tier?: string;
     search?: string;
     isPublished?: boolean;
-  }): Promise<{ items: ContentAsset[]; total: number; page: number; limit: number }> {
-    const page = Math.max(1, params.page || 1);
-    const limit = Math.min(100, Math.max(1, params.limit || 30));
-    const skip = (page - 1) * limit;
-
-    const where: Prisma.ContentAssetWhereInput = {};
-    if (params.isPublished !== undefined) where.isPublished = params.isPublished;
-    else where.isPublished = true;
-
-    if (params.categoryId && params.categoryId !== 'all') where.categoryId = params.categoryId;
-    if (params.festivalId && params.festivalId !== 'all') where.festivalId = params.festivalId;
-    if (params.language) where.language = params.language.toLowerCase();
-    if (params.contentType) where.contentType = params.contentType as ContentType;
-    if (params.aspectRatio && params.aspectRatio !== 'all') where.aspectRatio = params.aspectRatio;
-    if (params.tier && params.tier !== 'all') where.tier = params.tier.toUpperCase() as any;
-    if (params.search) {
-      where.OR = [
-        { title: { contains: params.search, mode: 'insensitive' } },
-        { description: { contains: params.search, mode: 'insensitive' } },
-        { tags: { has: params.search.toLowerCase() } },
-      ];
-    }
-
-    const [items, total] = await Promise.all([
-      prisma.contentAsset.findMany({
-        where,
-        orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
-        skip,
-        take: limit,
-        include: {
-          category: true,
-          festival: true,
-        },
-      }),
-      prisma.contentAsset.count({ where }),
-    ]);
-
-    return { items, total, page, limit };
+  }): Promise<{ items: any[]; total: number; page: number; limit: number }> {
+    return this.listMarketingPosters(params);
   }
 
   /**

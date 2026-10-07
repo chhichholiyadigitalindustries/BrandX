@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { TEMPLATES_DATA, APP_IMAGES, POSTER_IMAGES } from '../data/mockData';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { APP_IMAGES, POSTER_IMAGES } from '../data/mockData';
 import { TemplateItem, DailyCalendarItem, BusinessProfile, KhataCustomer, InvoiceData, StoreProduct, ScreenId } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { EmptyState } from '../components/EmptyState';
@@ -154,16 +154,17 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
 
         if (postersRes?.items && postersRes.items.length > 0) {
           setBackendTemplates(
-            postersRes.items.map((p) => ({
+            postersRes.items.map((p: any) => ({
               id: p.id,
-              title: p.title,
-              category: p.contentType || 'Festival',
+              title: p.title || p.headline || 'Poster',
+              category: p.category || p.categoryRel?.name || (typeof p.category === 'string' ? p.category : '') || p.contentType || 'General',
               categoryIcon: '🎨',
-              tier: p.tier,
+              tier: p.tier || 'FREE',
               format: (p.aspectRatio === '9:16' ? 'Story 9:16' : '1:1 Sq') as any,
               imageUrl: resolveImageUrl(p.imageUrl),
-              headlineDefault: p.title,
-              subheadlineDefault: p.description || undefined,
+              headlineDefault: p.headline || p.title,
+              subheadlineDefault: p.quoteHindi || p.description || undefined,
+              createdAt: p.createdAt,
             }))
           );
         } else {
@@ -183,8 +184,27 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
       }
     }
     fetchCmsData();
+
+    // Real-time synchronization: listen for Daily Status / Poster CMS updates
+    const handleSync = () => {
+      fetchCmsData();
+    };
+    window.addEventListener('brandx:daily-content-updated', handleSync);
+    window.addEventListener('brandx:posters-updated', handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('brandx_content_sync');
+      bc.onmessage = () => {
+        fetchCmsData();
+      };
+    } catch {}
+
     return () => {
       isMounted = false;
+      window.removeEventListener('brandx:daily-content-updated', handleSync);
+      window.removeEventListener('brandx:posters-updated', handleSync);
+      if (bc) bc.close();
     };
   }, [dailyOffset, activeCategory, searchQuery]);
 
@@ -262,14 +282,28 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
 
   const defaultCategories = [
     { label: 'All' },
+    { label: 'Suvichar', icon: '🌸' },
+    { label: 'Morning', icon: '🌅' },
     { label: 'Festival', icon: '🪔' },
-    { label: 'Offers', icon: '🔥' },
-    { label: 'Food & Cafe', icon: '☕' },
-    { label: 'Photography', icon: '📸' },
-    { label: 'Salon & Beauty', icon: '💇' },
     { label: 'Business', icon: '💼' },
+    { label: 'Motivation', icon: '🚀' },
+    { label: 'Offers', icon: '🔥' },
   ];
-  const categories = dbCategories.length > 0 ? dbCategories : defaultCategories;
+
+  const extraCategories = useMemo(() => {
+    const existingLabels = new Set(defaultCategories.map((c) => c.label.toLowerCase()));
+    const extras: { label: string; icon?: string }[] = [];
+    backendTemplates.forEach((t) => {
+      if (t.category && !existingLabels.has(t.category.toLowerCase())) {
+        existingLabels.add(t.category.toLowerCase());
+        const label = t.category.charAt(0).toUpperCase() + t.category.slice(1);
+        extras.push({ label, icon: '🏷️' });
+      }
+    });
+    return extras;
+  }, [backendTemplates]);
+
+  const categories = dbCategories.length > 0 ? dbCategories : [...defaultCategories, ...extraCategories];
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -285,15 +319,26 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
     });
   };
 
-  const templatesToFilter = hasLoadedBackend && backendTemplates.length > 0 ? backendTemplates : TEMPLATES_DATA;
+  // Pure single source of truth: only real database records, zero demo/mock data
+  const templatesToFilter = backendTemplates;
   const filteredTemplates = templatesToFilter.filter((item) => {
+    const itemCat = (item.category || '').toLowerCase();
+    const activeCat = activeCategory.toLowerCase();
     const matchesCategory =
       activeCategory === 'All' ||
-      item.category.toLowerCase().includes(activeCategory.toLowerCase().split(' ')[0]);
+      itemCat.includes(activeCat) ||
+      activeCat.includes(itemCat) ||
+      (activeCat === 'festival' && itemCat.includes('fest')) ||
+      (activeCat === 'morning' && (itemCat.includes('morning') || itemCat.includes('prabhat')));
+
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      searchQuery === '' ||
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase());
+      q === '' ||
+      item.title.toLowerCase().includes(q) ||
+      itemCat.includes(q) ||
+      (item.headlineDefault && item.headlineDefault.toLowerCase().includes(q)) ||
+      (item.subheadlineDefault && item.subheadlineDefault.toLowerCase().includes(q));
+
     return matchesCategory && matchesSearch;
   });
 
@@ -621,10 +666,18 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
             {/* Templates Grid or Empty State */}
             {filteredTemplates.length === 0 ? (
               <EmptyState
-                icon="search_off"
-                title={templatesToFilter.length === 0 ? "No posters available." : t.noTemplates}
-                description={templatesToFilter.length === 0 ? "Admin CMS dwara poster assets upload karne par yahan dikhenge." : t.noTemplatesSub}
-                actionLabel="Reset Search & Filters"
+                icon="photo_library"
+                title={
+                  templatesToFilter.length === 0
+                    ? 'Abhi koi marketing poster uplabdh nahi hai'
+                    : 'Koi poster match nahi hua'
+                }
+                description={
+                  templatesToFilter.length === 0
+                    ? 'Admin CMS dwara Daily Status ya poster publish karne par yahan sabhi real posters dikhenge.'
+                    : 'Kripya doosra search term ya category filter try karein.'
+                }
+                actionLabel={templatesToFilter.length === 0 ? 'Refresh Posters' : 'Reset Search & Filters'}
                 onAction={() => {
                   setSearchQuery('');
                   setActiveCategory('All');
@@ -672,12 +725,25 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
 
                       <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
                         <div>
-                          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
-                            {template.category}
-                          </span>
-                          <h3 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors truncate">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                              {template.category}
+                            </span>
+                            {template.createdAt && (
+                              <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[12px]">schedule</span>
+                                {new Date(template.createdAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' })}
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors truncate mt-1">
                             {template.title}
                           </h3>
+                          {template.subheadlineDefault && (
+                            <p className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">
+                              {template.subheadlineDefault}
+                            </p>
+                          )}
                         </div>
 
                         <div className="pt-2 flex items-center justify-between border-t border-white/10 text-xs">
@@ -685,7 +751,7 @@ export const TemplatesScreen: React.FC<TemplatesScreenProps> = ({
                             <span className="material-symbols-outlined text-[14px]">brush</span> Custom Canvas
                           </span>
                           <span className="font-bold text-blue-400 group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
-                            Edit <span>→</span>
+                            Edit & Brand <span>→</span>
                           </span>
                         </div>
                       </div>

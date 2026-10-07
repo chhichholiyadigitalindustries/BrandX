@@ -201,6 +201,7 @@ export interface TemplateItem {
   promptText?: string;
   headlineDefault?: string;
   subheadlineDefault?: string;
+  createdAt?: string;
 }
 
 export interface CopilotMessage {

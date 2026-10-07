@@ -52,6 +52,18 @@ export const AdminDailyStatusScreen: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const handleSync = () => loadData();
+    window.addEventListener('brandx:daily-content-updated', handleSync);
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('brandx_content_sync');
+      bc.onmessage = () => loadData();
+    } catch {}
+
+    return () => {
+      window.removeEventListener('brandx:daily-content-updated', handleSync);
+      if (bc) bc.close();
+    };
   }, []);
 
   const openNewForm = () => {

@@ -105,12 +105,13 @@ export class ContentService {
   }
 
   /**
-   * List poster library assets
+   * List marketing posters derived from DailyContent (Single Source of Truth)
    */
   async listPosters(params: {
     page?: number;
     limit?: number;
     categoryId?: string;
+    category?: string;
     festivalId?: string;
     language?: string;
     contentType?: string;
@@ -118,10 +119,25 @@ export class ContentService {
     tier?: string;
     search?: string;
   }) {
-    return contentRepository.listContentAssets({
+    return contentRepository.listMarketingPosters({
       ...params,
       isPublished: true,
     });
+  }
+
+  async listMarketingPosters(params: {
+    page?: number;
+    limit?: number;
+    categoryId?: string;
+    category?: string;
+    festivalId?: string;
+    language?: string;
+    contentType?: string;
+    aspectRatio?: string;
+    tier?: string;
+    search?: string;
+  }) {
+    return this.listPosters(params);
   }
 
   /**

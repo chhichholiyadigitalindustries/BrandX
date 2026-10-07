@@ -108,13 +108,16 @@ export const dailyStatusService = {
       throw new Error('Image URL zaroori hai. Kripya pehle image upload karein.');
     }
 
+    let result: any;
     if (status.id && !status.id.startsWith('ds_local_')) {
       const res = await adminDailyContentApi.updateDailyContent(status.id, payload);
-      return mapBackendToAdminStatus(res);
+      result = mapBackendToAdminStatus(res);
     } else {
       const res = await adminDailyContentApi.createDailyContent(payload);
-      return mapBackendToAdminStatus(res);
+      result = mapBackendToAdminStatus(res);
     }
+    notifyContentUpdate();
+    return result;
   },
 
   /**
@@ -122,6 +125,19 @@ export const dailyStatusService = {
    */
   async delete(id: string): Promise<boolean> {
     await adminDailyContentApi.deleteDailyContent(id);
+    notifyContentUpdate();
     return true;
   },
 };
+
+export function notifyContentUpdate() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('brandx:daily-content-updated'));
+    window.dispatchEvent(new CustomEvent('brandx:posters-updated'));
+    try {
+      const bc = new BroadcastChannel('brandx_content_sync');
+      bc.postMessage({ type: 'CONTENT_UPDATED', timestamp: Date.now() });
+      bc.close();
+    } catch {}
+  }
+}
