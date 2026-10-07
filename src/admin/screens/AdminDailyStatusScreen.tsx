@@ -54,10 +54,6 @@ export const AdminDailyStatusScreen: React.FC = () => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    setPreviewLoadError(false);
-  }, [activeDisplayItem?.imageUrl]);
-
   const openNewForm = () => {
     setIsEditing(true);
     setSelectedItem(null);
@@ -181,6 +177,10 @@ export const AdminDailyStatusScreen: React.FC = () => {
         language: formLanguage,
       }
     : selectedItem;
+
+  useEffect(() => {
+    setPreviewLoadError(false);
+  }, [activeDisplayItem?.imageUrl]);
 
   return (
     <div className="space-y-6">
