@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { digitalStoreApi, PublicStoreData } from '../services/digitalStoreApi';
 import { resolveImageUrl } from '../utils/imageUrl';
+import { buildUpiPaymentUri, validateUpiId, normalizeUpiId } from '../utils/upiQr';
 
 interface PublicStoreViewProps {
   slug: string;
@@ -91,12 +92,17 @@ export const PublicStoreView: React.FC<PublicStoreViewProps> = ({ slug }) => {
       showToast('Please enter a valid payment amount');
       return;
     }
-    const upiId = store?.upiId;
-    if (!upiId) {
-      showToast('Merchant UPI ID not configured');
+    const cleanUpi = normalizeUpiId(store?.upiId);
+    if (!cleanUpi) {
+      showToast('Merchant has not configured a UPI ID for payments yet.');
       return;
     }
-    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(store.title)}&am=${amount}&cu=INR`;
+    const val = validateUpiId(cleanUpi);
+    if (!val.isValid) {
+      showToast('Merchant UPI ID is invalid.');
+      return;
+    }
+    const upiUrl = buildUpiPaymentUri(cleanUpi, store?.title || 'Store', amount, `Order ${store?.title || ''}`);
     window.location.href = upiUrl;
     showToast('Opening UPI App (GPay / PhonePe / Paytm)... 💳');
   };

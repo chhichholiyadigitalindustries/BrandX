@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { businessApi } from '../services/businessApi';
 import { resolveImageUrl } from '../utils/imageUrl';
 import { mediaApi } from '../services/mediaApi';
+import { validateUpiId, normalizeUpiId } from '../utils/upiQr';
 
 interface OnboardingScreenProps {
   business: BusinessProfile;
@@ -118,9 +119,17 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
       }
     }
 
-    if (activeTab === 'payment' || formData.upiId) {
-      if (!formData.upiId.trim() || !formData.upiId.includes('@')) {
-        errs.upiId = isHindi ? 'मान्य UPI ID दर्ज करें (उदा. shop@okaxis)' : 'Valid UPI ID required (e.g. shop@okaxis)';
+    if (activeTab === 'payment' || (formData.upiId && formData.upiId.trim())) {
+      const cleanUpi = normalizeUpiId(formData.upiId);
+      if (!cleanUpi) {
+        if (activeTab === 'payment') {
+          errs.upiId = isHindi ? 'कृपया UPI ID दर्ज करें' : 'UPI ID is required';
+        }
+      } else {
+        const v = validateUpiId(cleanUpi);
+        if (!v.isValid) {
+          errs.upiId = isHindi ? 'मान्य UPI ID दर्ज करें (उदा. shop@okaxis)' : (v.error || 'Valid UPI ID required (e.g. shop@okaxis)');
+        }
       }
     }
 
@@ -135,55 +144,61 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     }
 
     setIsSaving(true);
+    const cleanUpi = normalizeUpiId(formData.upiId);
+    const profileDataToSave: BusinessProfile = {
+      ...formData,
+      upiId: cleanUpi,
+      upiLinked: Boolean(cleanUpi),
+    };
 
     try {
       if (business?.id && !business.id.startsWith('temp_')) {
         await businessApi.updateBusiness(business.id, {
-          name: formData.name,
-          ownerName: formData.ownerName,
-          category: formData.category,
-          mobile: formData.phone || formData.mobile,
-          email: formData.email,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
-          gstin: formData.hasGst ? formData.gstin : undefined,
-          pan: formData.pan,
-          logoUrl: formData.logoUrl,
-          upiId: formData.upiId,
-          bankName: formData.bankName,
-          accountNumber: formData.accountNumber,
-          ifscCode: formData.ifscCode,
-          accountHolderName: formData.accountHolderName,
-          invoicePrefix: formData.invoicePrefix || 'INV',
-          invoiceTerms: formData.invoiceTerms,
+          name: profileDataToSave.name,
+          ownerName: profileDataToSave.ownerName,
+          category: profileDataToSave.category,
+          mobile: profileDataToSave.phone || profileDataToSave.mobile,
+          email: profileDataToSave.email,
+          address: profileDataToSave.address,
+          city: profileDataToSave.city,
+          state: profileDataToSave.state,
+          pincode: profileDataToSave.pincode,
+          gstin: profileDataToSave.hasGst ? profileDataToSave.gstin : undefined,
+          pan: profileDataToSave.pan,
+          logoUrl: profileDataToSave.logoUrl,
+          upiId: cleanUpi,
+          bankName: profileDataToSave.bankName,
+          accountNumber: profileDataToSave.accountNumber,
+          ifscCode: profileDataToSave.ifscCode,
+          accountHolderName: profileDataToSave.accountHolderName,
+          invoicePrefix: profileDataToSave.invoicePrefix || 'INV',
+          invoiceTerms: profileDataToSave.invoiceTerms,
         });
       } else {
         const createRes = await businessApi.createBusiness({
-          name: formData.name,
-          ownerName: formData.ownerName,
-          category: formData.category,
-          mobile: formData.phone || formData.mobile || '',
-          email: formData.email,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode || '',
-          gstin: formData.hasGst ? formData.gstin : undefined,
-          pan: formData.pan,
-          logoUrl: formData.logoUrl,
-          upiId: formData.upiId,
-          bankName: formData.bankName,
-          accountNumber: formData.accountNumber,
-          ifscCode: formData.ifscCode,
-          accountHolderName: formData.accountHolderName,
-          invoicePrefix: formData.invoicePrefix || 'INV',
-          invoiceTerms: formData.invoiceTerms,
+          name: profileDataToSave.name,
+          ownerName: profileDataToSave.ownerName,
+          category: profileDataToSave.category,
+          mobile: profileDataToSave.phone || profileDataToSave.mobile || '',
+          email: profileDataToSave.email,
+          address: profileDataToSave.address,
+          city: profileDataToSave.city,
+          state: profileDataToSave.state,
+          pincode: profileDataToSave.pincode || '',
+          gstin: profileDataToSave.hasGst ? profileDataToSave.gstin : undefined,
+          pan: profileDataToSave.pan,
+          logoUrl: profileDataToSave.logoUrl,
+          upiId: cleanUpi,
+          bankName: profileDataToSave.bankName,
+          accountNumber: profileDataToSave.accountNumber,
+          ifscCode: profileDataToSave.ifscCode,
+          accountHolderName: profileDataToSave.accountHolderName,
+          invoicePrefix: profileDataToSave.invoicePrefix || 'INV',
+          invoiceTerms: profileDataToSave.invoiceTerms,
         });
 
         if (createRes.success && createRes.data?.id) {
-          formData.id = createRes.data.id;
+          profileDataToSave.id = createRes.data.id;
         }
       }
     } catch (apiErr) {
@@ -192,7 +207,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
     setIsSaving(false);
     setIsSuccess(true);
-    onSaveBusiness(formData);
+    onSaveBusiness(profileDataToSave);
     showToast('Profile & Payment details saved successfully! ✅');
     setTimeout(() => {
       setIsSuccess(false);

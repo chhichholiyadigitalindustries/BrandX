@@ -20,6 +20,7 @@ import { NfcCardPdfTemplate, NfcCardExportData } from '../components/NfcCardPdfT
 import { exportNfcVisitingCardToPdf, prepareNfcCardExportData } from '../utils/nfcCardPdfExport';
 import { getNfcCardTheme } from '../utils/nfcCardTheme';
 import { resolveImageUrl } from '../utils/imageUrl';
+import { buildUpiPaymentUri, validateUpiId, normalizeUpiId } from '../utils/upiQr';
 
 
 interface DigitalStoreScreenProps {
@@ -586,12 +587,19 @@ export const DigitalStoreScreen: React.FC<DigitalStoreScreenProps> = ({
       showToast('Please enter an amount to pay');
       return;
     }
-    const upiIdToUse = store?.upiId || business.upiId;
-    if (!upiIdToUse) {
-      showToast('Merchant UPI ID not configured. Please add in Profile.');
+    const rawUpi = store?.upiId || business.upiId;
+    const cleanUpi = normalizeUpiId(rawUpi);
+    if (!cleanUpi) {
+      showToast('Please add your UPI ID in Business Settings to generate your payment QR.');
       return;
     }
-    const upiLink = `upi://pay?pa=${encodeURIComponent(upiIdToUse)}&pn=${encodeURIComponent(store?.title || business.name || 'Merchant')}&am=${amount}&cu=INR`;
+    const val = validateUpiId(cleanUpi);
+    if (!val.isValid) {
+      showToast(val.error || 'Invalid UPI ID format. Please update in Business Settings.');
+      return;
+    }
+    const shopName = store?.title || business.name || 'Merchant';
+    const upiLink = buildUpiPaymentUri(cleanUpi, shopName, amount, `Order ${shopName}`);
     window.location.href = upiLink;
     showToast('Opening UPI App (GPay / PhonePe / Paytm)...');
   };

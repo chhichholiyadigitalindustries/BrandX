@@ -90,6 +90,15 @@ export const updateUserProfileSchema = z.object({
   timezone: z.string().optional(),
 });
 
+export const upiIdRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z0-9.\-_]{2,64}$/;
+export const upiIdSchema = z.string()
+  .trim()
+  .refine(val => !val || upiIdRegex.test(val), {
+    message: 'Invalid UPI ID format (e.g. shop@okhdfcbank or 9876543210@paytm)',
+  })
+  .optional()
+  .or(z.literal(''));
+
 export const createBusinessSchema = z.object({
   name: z.string().min(2, 'Business name is required').optional(),
   businessName: z.string().min(2).optional(),
@@ -109,7 +118,7 @@ export const createBusinessSchema = z.object({
   tagline: z.string().optional().or(z.literal('')),
   logo: z.string().optional().or(z.literal('')),
   logoUrl: z.string().optional().or(z.literal('')),
-  upiId: z.string().optional().or(z.literal('')),
+  upiId: upiIdSchema,
   bankName: z.string().optional().or(z.literal('')),
   accountNumber: z.string().optional().or(z.literal('')),
   ifscCode: z.string().optional().or(z.literal('')),
@@ -143,7 +152,7 @@ export const updateBusinessSchema = z.object({
   tagline: z.string().optional().or(z.literal('')),
   logo: z.string().optional().or(z.literal('')),
   logoUrl: z.string().optional().or(z.literal('')),
-  upiId: z.string().optional().or(z.literal('')),
+  upiId: upiIdSchema,
   bankName: z.string().optional().or(z.literal('')),
   accountNumber: z.string().optional().or(z.literal('')),
   ifscCode: z.string().optional().or(z.literal('')),

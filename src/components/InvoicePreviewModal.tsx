@@ -339,14 +339,16 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
               <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-gray-200">
                 <UpiQrCode
                   className="w-20 h-20"
-                  upiId={business.upiId}
+                  upiId={business.upiId || invoice.sellerUpi || invoice.upiIdSnapshot}
+                  merchantName={business.name || invoice.sellerName}
                   amount={grandTotal}
+                  note={invoice.invoiceNumber ? `Bill ${invoice.invoiceNumber}` : undefined}
                   logoUrl={business.logoUrl || '/brandx-logo.png'}
                 />
                 <div className="space-y-0.5">
                   <span className="text-[9px] font-bold text-blue-700 uppercase tracking-wider block">SCAN & PAY WITH ANY UPI APP</span>
                   <p className="text-xs font-bold text-gray-900">₹{grandTotal.toLocaleString('en-IN')}</p>
-                  <p className="text-[10px] text-gray-500 font-mono">{business.upiId}</p>
+                  <p className="text-[10px] text-gray-500 font-mono">{business.upiId || invoice.sellerUpi || invoice.upiIdSnapshot || 'UPI Not Configured'}</p>
                   <div className="flex items-center gap-1 text-[9px] text-emerald-700 font-bold">
                     <span>GPay • PhonePe • Paytm • BHIM</span>
                   </div>
@@ -572,12 +574,14 @@ export const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
               <div className="text-center py-2 space-y-1">
                 <UpiQrCode
                   className="w-24 h-24 mx-auto"
-                  upiId={business.upiId}
+                  upiId={business.upiId || invoice.sellerUpi || invoice.upiIdSnapshot}
+                  merchantName={business.name || invoice.sellerName}
                   amount={grandTotal}
+                  note={invoice.invoiceNumber ? `Bill ${invoice.invoiceNumber}` : undefined}
                   logoUrl={business.logoUrl || '/brandx-logo.png'}
                 />
                 <p className="text-[9px] font-bold">SCAN & PAY VIA UPI</p>
-                <p className="text-[8px] text-gray-500 font-mono">{business.upiId}</p>
+                <p className="text-[8px] text-gray-500 font-mono">{business.upiId || invoice.sellerUpi || invoice.upiIdSnapshot || 'UPI Not Configured'}</p>
               </div>
 
               <div className="text-center text-[9px] text-gray-500 pt-2 border-t border-dashed border-gray-400">

@@ -133,7 +133,8 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
           pincode: primaryBiz.pincode || prev.pincode,
           gstin: primaryBiz.gstin || prev.gstin,
           pan: primaryBiz.pan || prev.pan,
-          upiId: primaryBiz.upiId || prev.upiId,
+          upiId: primaryBiz.upiId || '',
+          upiLinked: primaryBiz.upiLinked !== undefined ? primaryBiz.upiLinked : Boolean(primaryBiz.upiId),
           logoUrl: primaryBiz.logoUrl || primaryBiz.logo || prev.logoUrl,
         }));
       } else if (initialPayload?.primaryBusiness) {
@@ -154,7 +155,8 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
           pincode: primaryBiz.pincode || prev.pincode,
           gstin: primaryBiz.gstin || prev.gstin,
           pan: primaryBiz.pan || prev.pan,
-          upiId: primaryBiz.upiId || prev.upiId,
+          upiId: primaryBiz.upiId || '',
+          upiLinked: primaryBiz.upiLinked !== undefined ? primaryBiz.upiLinked : Boolean(primaryBiz.upiId),
           logoUrl: primaryBiz.logoUrl || primaryBiz.logo || prev.logoUrl,
         }));
       }

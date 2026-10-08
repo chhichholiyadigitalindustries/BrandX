@@ -4,6 +4,7 @@ import { businessApi } from '../../../services/businessApi';
 import { useLanguage } from '../../../context/LanguageContext';
 import { resolveImageUrl } from '../../../utils/imageUrl';
 import { mediaApi } from '../../../services/mediaApi';
+import { validateUpiId } from '../../../utils/upiQr';
 
 interface BusinessProfileSectionProps {
   business: BusinessProfile;
@@ -93,6 +94,19 @@ export const BusinessProfileSection: React.FC<BusinessProfileSectionProps> = ({
         text: isHindi ? 'कृपया 15 अक्षरों का मान्य GSTIN दर्ज करें।' : 'Please enter a valid 15-character GSTIN.',
       });
       return;
+    }
+
+    // Validate UPI ID format if provided
+    if (formData.upiId && formData.upiId.trim().length > 0) {
+      const upiValidation = validateUpiId(formData.upiId);
+      if (!upiValidation.isValid) {
+        setIsSaving(false);
+        setStatusMessage({
+          type: 'error',
+          text: upiValidation.error || (isHindi ? 'कृपया मान्य UPI ID दर्ज करें (उदा. shop@okhdfcbank या 9876543210@paytm)।' : 'Please enter a valid UPI ID (e.g. shop@okhdfcbank or 9876543210@paytm).'),
+        });
+        return;
+      }
     }
 
     try {

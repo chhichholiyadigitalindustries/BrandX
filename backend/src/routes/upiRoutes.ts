@@ -1,12 +1,12 @@
 /**
  * BRANDX — UPI QR & Payment Standee Routes
- * Pro-gated UPI management and standee generator endpoints
+ * Centralized business UPI details and standee generator endpoints
  */
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { requireBusinessAccess } from '../middleware/businessAuthMiddleware.js';
 import { requireProSubscription } from '../middleware/subscriptionMiddleware.js';
-import { prisma } from '../config/database.js';
+import { upiService } from '../services/upiService.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 const router = Router();
@@ -15,46 +15,57 @@ router.use(requireAuth);
 router.use(requireBusinessAccess);
 
 /**
- * Generate customized UPI payment string and QR standee metadata
+ * GET /api/v1/upi/details
+ * Retrieve authenticated business's UPI settings and linked VPA
  */
-router.post('/generate-qr', requireProSubscription, async (req: Request, res: Response) => {
+router.get('/details', async (req: Request, res: Response) => {
   try {
-    const business = await prisma.business.findUnique({
-      where: { id: req.businessId },
-      select: { id: true, name: true, upiId: true, mobile: true },
-    });
-
-    if (!business) {
-      sendError(res, 'Business not found', 404);
-      return;
-    }
-
-    const { amount, note, theme } = req.body;
-    const upiId = req.body.upiId || business.upiId;
-
-    if (!upiId) {
-      sendError(res, 'UPI ID is required to generate payment standee', 400);
-      return;
-    }
-
-    const upiString = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(business.name)}` +
-      (amount ? `&am=${parseFloat(amount).toFixed(2)}` : '') +
-      `&cu=INR` +
-      (note ? `&tn=${encodeURIComponent(note)}` : '');
-
-    sendSuccess(res, {
-      upiString,
-      upiId,
-      businessName: business.name,
-      amount: amount ? parseFloat(amount) : null,
-      theme: theme || 'classic',
-    }, 'UPI QR Standee generated successfully');
+    const details = await upiService.getBusinessUpiDetails(req.businessId!);
+    sendSuccess(res, details, 'Business UPI details retrieved');
   } catch (err: any) {
-    sendError(res, err.message || 'Failed to generate UPI QR', 500);
+    sendError(res, err.message || 'Failed to retrieve UPI details', 400);
   }
 });
 
 /**
+ * GET /api/v1/upi
+ * Alias for retrieving UPI details
+ */
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const details = await upiService.getBusinessUpiDetails(req.businessId!);
+    sendSuccess(res, details, 'Business UPI details retrieved');
+  } catch (err: any) {
+    sendError(res, err.message || 'Failed to retrieve UPI details', 400);
+  }
+});
+
+/**
+ * POST /api/v1/upi/generate-qr
+ * Generate customized UPI payment string and QR standee metadata (Pro feature)
+ */
+router.post('/generate-qr', requireProSubscription, async (req: Request, res: Response) => {
+  try {
+    const { amount, note, theme } = req.body;
+    const numAmount = amount !== undefined && amount !== null && amount !== '' ? parseFloat(amount) : null;
+
+    const payload = await upiService.generateBusinessUpiPayload(req.businessId!, {
+      amount: numAmount,
+      note,
+    });
+
+    sendSuccess(res, {
+      ...payload,
+      theme: theme || 'classic',
+    }, 'UPI QR Standee generated successfully');
+  } catch (err: any) {
+    const status = err.statusCode || (err.message?.includes('not found') ? 404 : 400);
+    sendError(res, err.message || 'Failed to generate UPI QR', status);
+  }
+});
+
+/**
+ * POST /api/v1/upi/standee
  * Save or link custom UPI ID for business standee
  */
 router.post('/standee', requireProSubscription, async (req: Request, res: Response) => {
@@ -65,18 +76,29 @@ router.post('/standee', requireProSubscription, async (req: Request, res: Respon
       return;
     }
 
-    const updated = await prisma.business.update({
-      where: { id: req.businessId },
-      data: {
-        upiId: upiId.trim(),
-        upiLinked: true,
-      },
-      select: { id: true, name: true, upiId: true, upiLinked: true },
-    });
-
+    const updated = await upiService.updateBusinessUpi(req.businessId!, upiId);
     sendSuccess(res, updated, 'UPI Standee updated successfully');
   } catch (err: any) {
-    sendError(res, err.message || 'Failed to update UPI standee', 500);
+    sendError(res, err.message || 'Failed to update UPI standee', 400);
+  }
+});
+
+/**
+ * PATCH /api/v1/upi
+ * Update authenticated business's UPI ID directly
+ */
+router.patch('/', async (req: Request, res: Response) => {
+  try {
+    const { upiId } = req.body;
+    if (!upiId || typeof upiId !== 'string') {
+      sendError(res, 'Valid UPI ID is required', 400);
+      return;
+    }
+
+    const updated = await upiService.updateBusinessUpi(req.businessId!, upiId);
+    sendSuccess(res, updated, 'Business UPI ID updated successfully');
+  } catch (err: any) {
+    sendError(res, err.message || 'Failed to update UPI ID', 400);
   }
 });
 

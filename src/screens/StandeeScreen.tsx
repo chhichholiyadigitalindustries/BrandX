@@ -5,6 +5,8 @@ import { shareImageToWhatsApp } from '../utils/posterShare';
 import { exportElementToPng } from '../utils/domToImage';
 import { WhatsAppShareGuideModal } from '../components/WhatsAppShareGuideModal';
 import { resolveImageUrl } from '../utils/imageUrl';
+import { UpiQrCode } from '../components/UpiQrCode';
+import { validateUpiId } from '../utils/upiQr';
 
 interface StandeeScreenProps {
   business: BusinessProfile;
@@ -36,9 +38,11 @@ export const StandeeScreen: React.FC<StandeeScreenProps> = ({ business, onOpenPr
     setTimeout(() => setToastMessage(null), 2500);
   };
 
+  const isUpiConfigured = Boolean(business.upiId && validateUpiId(business.upiId).isValid);
+
   const copyUpiId = () => {
-    if (!business.upiId) {
-      showToast('Please set your UPI ID in Business Profile first');
+    if (!isUpiConfigured) {
+      showToast('Please add your UPI ID in Business Settings first');
       return;
     }
     navigator.clipboard.writeText(business.upiId);
@@ -52,6 +56,10 @@ export const StandeeScreen: React.FC<StandeeScreenProps> = ({ business, onOpenPr
     : null;
 
   const handleShareWhatsApp = async () => {
+    if (qrType === 'upi' && !isUpiConfigured) {
+      showToast('Please add your UPI ID in Business Settings to generate your payment QR');
+      return;
+    }
     setIsSharing(true);
     showToast('🖼️ WhatsApp ke liye Standee QR image ban rahi hai...');
     try {
@@ -88,6 +96,10 @@ export const StandeeScreen: React.FC<StandeeScreenProps> = ({ business, onOpenPr
   };
 
   const handleDownloadPdf = () => {
+    if (qrType === 'upi' && !isUpiConfigured) {
+      showToast('Please add your UPI ID in Business Settings to print your payment QR standee');
+      return;
+    }
     showToast('High-res vector Standee PDF generated! 🖨️');
     window.print();
   };
@@ -207,6 +219,19 @@ export const StandeeScreen: React.FC<StandeeScreenProps> = ({ business, onOpenPr
 
       {/* Live Acrylic Standee / Countertop Visual Preview */}
       <section className="px-4 py-3 flex flex-col items-center max-w-lg mx-auto w-full">
+        {/* Missing UPI Warning Prompt */}
+        {!isUpiConfigured && (
+          <div className="w-full max-w-[340px] mb-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2.5 text-xs text-amber-900 shadow-xs">
+            <span className="material-symbols-outlined text-[20px] text-amber-600 shrink-0">warning</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold">UPI ID Not Configured</p>
+              <p className="text-[11px] text-amber-800">
+                Please add your UPI ID in Business Settings to generate your payment QR.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Acrylic Standee Simulated Frame */}
         <div className="relative w-full max-w-[340px] pt-2 pb-5 flex flex-col items-center">
           {/* Clear Acrylic Top Reflection & Metallic Clip */}
@@ -258,70 +283,17 @@ export const StandeeScreen: React.FC<StandeeScreenProps> = ({ business, onOpenPr
               <div className={`absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 ${themeStyle.cornerBorder}`}></div>
               <div className={`absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 ${themeStyle.cornerBorder}`}></div>
 
-              {/* Realistic Crisp SVG QR Code */}
+              {/* Real High-Resolution Scannable Dynamic QR Code */}
               <div className="relative w-48 h-48 flex items-center justify-center">
-                <svg className="w-full h-full text-[#131b2e]" viewBox="0 0 100 100">
-                  {/* QR Finder: Top-Left */}
-                  <rect fill="currentColor" height="26" rx="2" width="26" x="5" y="5"></rect>
-                  <rect fill="#FFFFFF" height="20" rx="1" width="20" x="8" y="8"></rect>
-                  <rect fill="currentColor" height="14" rx="1" width="14" x="11" y="11"></rect>
-
-                  {/* QR Finder: Top-Right */}
-                  <rect fill="currentColor" height="26" rx="2" width="26" x="69" y="5"></rect>
-                  <rect fill="#FFFFFF" height="20" rx="1" width="20" x="72" y="8"></rect>
-                  <rect fill="currentColor" height="14" rx="1" width="14" x="75" y="11"></rect>
-
-                  {/* QR Finder: Bottom-Left */}
-                  <rect fill="currentColor" height="26" rx="2" width="26" x="5" y="69"></rect>
-                  <rect fill="#FFFFFF" height="20" rx="1" width="20" x="8" y="72"></rect>
-                  <rect fill="currentColor" height="14" rx="1" width="14" x="11" y="75"></rect>
-
-                  {/* Modules */}
-                  <rect fill="currentColor" height="6" width="6" x="36" y="7"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="47" y="7"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="58" y="7"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="36" y="18"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="47" y="18"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="58" y="24"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="7" y="36"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="18" y="36"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="29" y="36"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="36" y="36"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="58" y="36"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="69" y="36"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="87" y="36"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="7" y="47"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="24" y="47"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="69" y="47"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="80" y="47"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="7" y="58"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="18" y="58"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="36" y="58"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="58" y="58"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="80" y="58"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="36" y="69"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="47" y="69"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="69" y="69"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="87" y="69"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="36" y="80"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="58" y="80"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="75" y="80"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="47" y="87"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="69" y="87"></rect>
-                  <rect fill="currentColor" height="6" width="6" x="80" y="87"></rect>
-                </svg>
-
-                {/* Brand Logo in Center of QR */}
-                <div className="absolute inset-0 m-auto w-12 h-12 rounded-xl bg-white p-1.5 shadow-md flex items-center justify-center border border-gray-100 overflow-hidden">
-                  <img
-                    alt={business.name || 'Brand Logo'}
-                    className="w-full h-full object-contain rounded-lg"
-                    src={resolveImageUrl(business.logoUrl || APP_IMAGES.logo || '/brandx-logo.png')}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/brandx-logo.png';
-                    }}
-                  />
-                </div>
+                <UpiQrCode
+                  className="w-full h-full"
+                  upiId={business.upiId}
+                  merchantName={business.name}
+                  amount={qrType === 'upi' ? currentDisplayAmount : null}
+                  note={business.name ? `Payment to ${business.name}` : undefined}
+                  logoUrl={business.logoUrl || APP_IMAGES.logo || '/brandx-logo.png'}
+                  missingText="UPI Not Configured"
+                />
               </div>
             </div>
 

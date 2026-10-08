@@ -7,6 +7,8 @@ import { SkeletonLoader } from '../components/SkeletonLoader';
 import { ExpenseBook } from '../components/ExpenseBook';
 import { shareKhataStatementToWhatsApp, shareKhataTextToWhatsApp, isForbiddenShopName } from '../utils/posterShare';
 import { WhatsAppShareGuideModal } from '../components/WhatsAppShareGuideModal';
+import { UpiQrCode } from '../components/UpiQrCode';
+import { buildUpiPaymentUri, validateUpiId, normalizeUpiId } from '../utils/upiQr';
 import { customerKhataApi, authApi, businessApi } from '../services/api';
 
 interface KhataScreenProps {
@@ -39,6 +41,7 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
   // Modals
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showAddTxModal, setShowAddTxModal] = useState<'give' | 'receive' | null>(null);
+  const [showKhataQrModal, setShowKhataQrModal] = useState(false);
   
   // Confirmation Modals
   const [customerToDelete, setCustomerToDelete] = useState<KhataCustomer | null>(null);
@@ -738,6 +741,16 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                {selectedCustomer.totalDue > 0 && (
+                  <button
+                    onClick={() => setShowKhataQrModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow transition-all active:scale-95 cursor-pointer"
+                    title={isHindi ? 'पेमेंट QR कोड दिखाएं' : 'Show Payment QR Code'}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
+                    <span>{isHindi ? 'QR दिखाएं' : 'Show QR'}</span>
+                  </button>
+                )}
                 <button
                   onClick={() => handleSendWhatsAppReminder(selectedCustomer)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow transition-all active:scale-95 cursor-pointer"
@@ -1038,6 +1051,79 @@ export const KhataScreen: React.FC<KhataScreenProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Khata Payment Collection QR Modal */}
+      {showKhataQrModal && selectedCustomer && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#131B2E] border border-white/15 w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center animate-slide-up relative">
+            <button
+              onClick={() => setShowKhataQrModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mb-3">
+              <span className="material-symbols-outlined text-[28px]">qr_code_2</span>
+            </div>
+
+            <h3 className="text-lg font-bold text-white">
+              {isHindi ? 'ग्राहक उधारी भुगतान QR' : 'Customer Udhar Payment QR'}
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">
+              {isHindi ? `ग्राहक ${selectedCustomer.name} से पेमेंट स्कैन करवाएं` : `Scan to collect due from ${selectedCustomer.name}`}
+            </p>
+
+            <div className="my-5 p-3 bg-white rounded-2xl shadow-xl flex flex-col items-center">
+              <UpiQrCode
+                upiId={business.upiId}
+                merchantName={business.name || 'Merchant'}
+                amount={selectedCustomer.totalDue}
+                note={`Udhar ${selectedCustomer.name}`}
+                className="w-52 h-52"
+                missingText={isHindi ? 'UPI ID सेट नहीं है' : 'UPI Not Configured'}
+              />
+            </div>
+
+            <div className="w-full bg-[#1A243B] border border-white/10 rounded-2xl p-3 mb-4 text-left">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">{isHindi ? 'दुकानदार UPI ID:' : 'Shop UPI ID:'}</span>
+                <span className="font-mono font-bold text-blue-400 truncate max-w-[180px]">
+                  {business.upiId || (isHindi ? 'सेट नहीं है' : 'Not Set')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs mt-1.5 pt-1.5 border-t border-white/5">
+                <span className="text-slate-400">{isHindi ? 'कुल बकाया राशि:' : 'Amount to Collect:'}</span>
+                <span className="font-bold text-base text-red-400">
+                  ₹{selectedCustomer.totalDue.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            <div className="w-full space-y-2">
+              <button
+                onClick={() => {
+                  setShowKhataQrModal(false);
+                  setTxAmount(selectedCustomer.totalDue.toString());
+                  setTxNote(isHindi ? 'UPI द्वारा भुगतान प्राप्त' : 'Received payment via UPI');
+                  setShowAddTxModal('receive');
+                }}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                <span>{isHindi ? 'भुगतान दर्ज करें (मुझे मिला)' : 'Record Payment Received'}</span>
+              </button>
+
+              <button
+                onClick={() => setShowKhataQrModal(false)}
+                className="w-full py-2 px-4 bg-white/5 hover:bg-white/10 text-slate-300 font-medium text-xs rounded-xl transition-all cursor-pointer"
+              >
+                {t.close || 'Close'}
+              </button>
+            </div>
           </div>
         </div>
       )}

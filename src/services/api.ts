@@ -61,4 +61,10 @@ export {
   type PublicCardData,
 } from './digitalCardApi';
 
+export {
+  upiApi,
+  type BusinessUpiDetails,
+  type GeneratedUpiPayload,
+} from './upiApi';
+
 

@@ -4,6 +4,7 @@ import { Share } from '@capacitor/share';
 import QRCode from 'qrcode';
 import { DailyCalendarItem, BusinessProfile, KhataCustomer } from '../types';
 import { resolveImageUrl } from './imageUrl';
+import { buildUpiPaymentUri, validateUpiId, normalizeUpiId } from './upiQr';
 
 /**
  * Detects whether a given business or shop name is a forbidden placeholder,
@@ -83,26 +84,9 @@ export function isValidMerchantLogoUrl(url?: string | null): boolean {
 }
 
 /**
- * Generates an official NPCI standard UPI payment URI deep link.
- * Example: upi://pay?pa=<REAL_UPI_ID>&pn=<REAL_BUSINESS_NAME>&am=<AMOUNT>&cu=INR
+ * Re-export NPCI standard UPI payment URI builder from centralized utility
  */
-export function buildUpiPaymentUri(
-  upiId: string,
-  merchantName: string,
-  amount?: number
-): string {
-  const cleanUpi = upiId.trim();
-  const cleanName = merchantName.trim() || 'Merchant';
-  const encodedName = encodeURIComponent(cleanName);
-  const encodedUpi = encodeURIComponent(cleanUpi);
-
-  let uri = `upi://pay?pa=${encodedUpi}&pn=${encodedName}&cu=INR`;
-  if (typeof amount === 'number' && amount > 0) {
-    const formattedAmt = amount % 1 === 0 ? amount.toString() : amount.toFixed(2);
-    uri += `&am=${formattedAmt}`;
-  }
-  return uri;
-}
+export { buildUpiPaymentUri, validateUpiId, normalizeUpiId } from './upiQr';
 
 /**
  * Helper to wrap text into multiple lines on a 2D canvas context

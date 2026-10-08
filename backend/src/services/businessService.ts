@@ -1,4 +1,5 @@
 import { businessRepository } from '../repositories/businessRepository.js';
+import { prisma } from '../config/database.js';
 
 export class BusinessService {
   async getBusiness(businessId: string, userId: string) {
@@ -18,7 +19,8 @@ export class BusinessService {
     const normalizedLogo = data.logoUrl || data.logo || null;
     const normalizedGstin = data.gstin || data.GSTIN || null;
     const normalizedPan = data.pan || data.PAN || null;
-    const normalizedUpi = data.upiId || data.upi || null;
+    const rawUpi = data.upiId !== undefined ? data.upiId : data.upi;
+    const normalizedUpi = typeof rawUpi === 'string' && rawUpi.trim() ? rawUpi.trim().toLowerCase() : null;
 
     return businessRepository.create({
       owner: { connect: { id: userId } },
@@ -89,7 +91,8 @@ export class BusinessService {
       updatePayload.logoUrl = data.logoUrl || data.logo || null;
     }
     if (data.upiId !== undefined || data.upi !== undefined) {
-      const upi = data.upiId || data.upi || null;
+      const rawUpi = data.upiId !== undefined ? data.upiId : data.upi;
+      const upi = typeof rawUpi === 'string' && rawUpi.trim() ? rawUpi.trim().toLowerCase() : null;
       updatePayload.upiId = upi;
       updatePayload.upiLinked = Boolean(upi);
     }
@@ -104,7 +107,14 @@ export class BusinessService {
     if (data.signatureUrl !== undefined) updatePayload.signatureUrl = data.signatureUrl || null;
     if (data.instagram !== undefined) updatePayload.instagram = data.instagram || null;
 
-    return businessRepository.update(businessId, updatePayload);
+    const updated = await businessRepository.update(businessId, updatePayload);
+    if (updatePayload.upiId !== undefined) {
+      await prisma.digitalStore.updateMany({
+        where: { businessId },
+        data: { upiId: updatePayload.upiId },
+      }).catch(() => {});
+    }
+    return updated;
   }
 
   async updateSettings(businessId: string, userId: string, data: any) {
