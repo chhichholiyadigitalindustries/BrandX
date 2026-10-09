@@ -25,6 +25,8 @@ enum UserStatus {
 enum AdminRole {
   SUPER_ADMIN
   ADMIN
+  COO
+  CMO
   MANAGER
   ACCOUNTANT
   CONTENT_MANAGER

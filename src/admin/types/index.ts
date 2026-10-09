@@ -6,6 +6,8 @@
 export type AdminRole =
   | 'SUPER_ADMIN'
   | 'ADMIN'
+  | 'COO'
+  | 'CMO'
   | 'MANAGER'
   | 'ACCOUNTANT'
   | 'CONTENT_MANAGER'
@@ -13,6 +15,8 @@ export type AdminRole =
   | 'FINANCE'
   | 'super_admin'
   | 'admin'
+  | 'coo'
+  | 'cmo'
   | 'manager'
   | 'accountant'
   | 'content_manager'

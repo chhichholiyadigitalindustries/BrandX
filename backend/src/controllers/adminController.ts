@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { adminService } from '../services/adminService.js';
+import { adminRevenueService } from '../services/adminRevenueService.js';
 import { contentService } from '../services/contentService.js';
 import { referralService } from '../services/referralService.js';
 import { walletService } from '../services/walletService.js';
@@ -60,13 +61,28 @@ export class AdminController {
 
   async listSubscribers(req: Request, res: Response): Promise<void> {
     try {
-      const page = parseInt(req.query.page as string, 10) || 1;
-      const limit = parseInt(req.query.limit as string, 10) || 20;
-      const search = req.query.search as string;
-      const status = req.query.status as string;
+      const result = await adminRevenueService.listSubscriptions(req.query as any, req.adminUser?.role);
+      sendPaginated(res, result.subscriptions, result.total, result.page, result.limit, 'Pro subscribers');
+    } catch (error: any) {
+      sendError(res, error.message, 400);
+    }
+  }
 
-      const { subscribers, total } = await adminService.listSubscribers({ page, limit, search, status });
-      sendPaginated(res, subscribers, total, page, limit, 'Pro subscribers');
+  async getSubscriptionDetail(req: Request, res: Response): Promise<void> {
+    try {
+      const detail = await adminRevenueService.getSubscriptionDetail(req.params.id, req.adminUser?.role);
+      sendSuccess(res, detail, 'Subscription detail retrieved');
+    } catch (error: any) {
+      sendError(res, error.message, 404);
+    }
+  }
+
+  async exportSubscriptionsCsv(req: Request, res: Response): Promise<void> {
+    try {
+      const csv = await adminRevenueService.exportSubscriptionsCsv(req.query as any, req.adminUser?.role);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="brandx_subscriptions_${Date.now()}.csv"`);
+      res.status(200).send(csv);
     } catch (error: any) {
       sendError(res, error.message, 400);
     }
@@ -102,8 +118,8 @@ export class AdminController {
 
   async getRevenueSummary(req: Request, res: Response): Promise<void> {
     try {
-      const summary = await adminService.getRevenueSummary();
-      sendSuccess(res, summary, 'Revenue summary retrieved');
+      const summary = await adminRevenueService.getRevenueDashboard(req.adminUser?.role);
+      sendSuccess(res, summary, 'Subscription & Revenue dashboard metrics');
     } catch (error: any) {
       sendError(res, error.message, 400);
     }
@@ -220,6 +236,15 @@ export class AdminController {
         req.adminUser?.id
       );
       sendSuccess(res, updated, 'Admin role updated successfully');
+    } catch (error: any) {
+      sendError(res, error.message, 400);
+    }
+  }
+
+  async resetAdminPassword(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await adminService.resetAdminPassword(req.params.id, req.adminUser?.id);
+      sendSuccess(res, result, 'Admin password reset initiated successfully');
     } catch (error: any) {
       sendError(res, error.message, 400);
     }

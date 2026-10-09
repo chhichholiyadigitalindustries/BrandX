@@ -125,10 +125,20 @@ export class AdminService {
   }
 
   async updateAdminStatus(adminId: string, status: 'ACTIVE' | 'SUSPENDED', isActive?: boolean, reason?: string, actorAdminId?: string) {
+    if (actorAdminId && actorAdminId === adminId) {
+      throw new Error('Self-deactivation or modifying your own status is strictly forbidden');
+    }
+
     const target = await adminRepository.findById(adminId);
     if (!target) throw new Error('Admin user not found');
+
     if (target.role === 'SUPER_ADMIN') {
-      throw new Error('Super Admin account status cannot be modified');
+      const activeSuperAdmins = await prisma.adminUser.count({
+        where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE' },
+      });
+      if (activeSuperAdmins <= 1 && (status === 'SUSPENDED' || isActive === false)) {
+        throw new Error('Cannot deactivate or suspend the last remaining Super Admin account');
+      }
     }
 
     const activeFlag = isActive !== undefined ? isActive : status === 'ACTIVE';
@@ -143,17 +153,31 @@ export class AdminService {
       action: 'ADMIN_STATUS_CHANGED',
       entity: 'AdminUser',
       entityId: adminId,
-      metadata: { newStatus: status, isActive: activeFlag, reason },
+      metadata: { newStatus: status, isActive: activeFlag, reason, targetEmail: target.email },
     });
 
     return updated;
   }
 
   async updateAdminRole(adminId: string, role: any, actorAdminId?: string) {
+    if (actorAdminId && actorAdminId === adminId) {
+      throw new Error('Self-promotion or modifying your own privileged role is strictly forbidden');
+    }
+
     const target = await adminRepository.findById(adminId);
     if (!target) throw new Error('Admin user not found');
-    if (target.role === 'SUPER_ADMIN' || role === 'SUPER_ADMIN') {
-      throw new Error('Super Admin role cannot be modified or assigned via role update');
+
+    if (target.role === 'SUPER_ADMIN' && role !== 'SUPER_ADMIN') {
+      const activeSuperAdmins = await prisma.adminUser.count({
+        where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE' },
+      });
+      if (activeSuperAdmins <= 1) {
+        throw new Error('Cannot demote or change the role of the last remaining Super Admin');
+      }
+    }
+
+    if (role === 'SUPER_ADMIN') {
+      throw new Error('Assigning Super Admin role is not permitted via role update');
     }
 
     const updated = await adminRepository.update(adminId, { role });
@@ -164,10 +188,37 @@ export class AdminService {
       action: 'ADMIN_ROLE_CHANGED',
       entity: 'AdminUser',
       entityId: adminId,
-      metadata: { oldRole: target.role, newRole: role },
+      metadata: { oldRole: target.role, newRole: role, targetEmail: target.email },
     });
 
     return updated;
+  }
+
+  async resetAdminPassword(adminId: string, actorAdminId?: string) {
+    const target = await adminRepository.findById(adminId);
+    if (!target) throw new Error('Admin user not found');
+
+    // Generate secure temporary random password
+    const tempPassword = `BX#${Math.random().toString(36).slice(-6)}!${Date.now().toString().slice(-4)}`;
+    const passwordHash = await hashPassword(tempPassword);
+
+    await adminRepository.update(adminId, { passwordHash });
+
+    await auditRepository.log({
+      actorId: actorAdminId,
+      actorType: 'ADMIN',
+      action: 'ADMIN_PASSWORD_RESET_TRIGGERED',
+      entity: 'AdminUser',
+      entityId: adminId,
+      metadata: { targetEmail: target.email },
+    });
+
+    return {
+      success: true,
+      email: target.email,
+      temporaryPassword: tempPassword,
+      message: 'Secure password reset completed. Temporary credentials generated.',
+    };
   }
 
   async listAuditLogs(limit: number = 100) {

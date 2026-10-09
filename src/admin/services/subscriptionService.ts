@@ -11,22 +11,31 @@ import { API_BASE_URL } from '../../config/env';
 
 
 class SubscriptionService {
-  async getSubscribers(filters?: {
+  async getSubscribersAdvanced(filters?: {
     search?: string;
-    status?: SubscriptionStatus | 'all';
-    planCode?: string | 'all';
-    expiringWithinDays?: number;
-    autoRenew?: boolean;
+    dateRange?: string;
+    startDate?: string;
+    endDate?: string;
+    plan?: string;
+    billingCycle?: string;
+    paymentStatus?: string;
+    subscriptionStatus?: string;
     page?: number;
     limit?: number;
-  }): Promise<Subscription[]> {
+  }): Promise<{ subscriptions: Subscription[]; total: number; page: number; limit: number; totalPages: number }> {
     const token = adminAuthService.getAdminToken();
     const query = new URLSearchParams();
 
     if (filters?.page) query.set('page', String(filters.page));
-    if (filters?.limit) query.set('limit', String(filters.limit || 50));
+    if (filters?.limit) query.set('limit', String(filters.limit || 20));
     if (filters?.search) query.set('search', filters.search);
-    if (filters?.status && filters.status !== 'all') query.set('status', filters.status.toUpperCase());
+    if (filters?.dateRange) query.set('dateRange', filters.dateRange);
+    if (filters?.startDate) query.set('startDate', filters.startDate);
+    if (filters?.endDate) query.set('endDate', filters.endDate);
+    if (filters?.plan) query.set('plan', filters.plan);
+    if (filters?.billingCycle) query.set('billingCycle', filters.billingCycle);
+    if (filters?.paymentStatus) query.set('paymentStatus', filters.paymentStatus);
+    if (filters?.subscriptionStatus) query.set('subscriptionStatus', filters.subscriptionStatus);
 
     try {
       const res = await fetch(`${API_BASE_URL}/admin/subscribers?${query.toString()}`, {
@@ -38,58 +47,127 @@ class SubscriptionService {
       });
 
       const json = await res.json().catch(() => null);
-
       if (res.ok && json?.data) {
         const raw = json.data.subscribers || [];
-        return raw.map((s: any) => {
-          const firstTx = s.paymentTransactions?.[0];
-          const rawExpiry = s.expiryDate || s.currentPeriodEnd || s.endDate;
-          const rawStart = s.startDate || s.currentPeriodStart || s.createdAt;
-          const expiryFormatted = rawExpiry ? new Date(rawExpiry).toISOString().split('T')[0] : 'Not available';
-          const startFormatted = rawStart ? new Date(rawStart).toISOString().split('T')[0] : 'Not available';
+        const subscriptions = raw.map((s: any) => ({
+          id: s.id,
+          userId: s.userId || '',
+          userName: s.userName || s.user?.name || 'Customer',
+          userPhone: s.userPhone || s.user?.mobile || '',
+          userEmail: s.userEmail || s.user?.email || '',
+          businessId: s.businessId || '',
+          businessName: s.businessName || s.business?.name || 'Shop',
+          businessGstin: s.businessGstin,
+          businessCity: s.businessCity,
+          businessState: s.businessState,
+          planId: s.planId || '',
+          planName: s.planName || s.plan?.name || 'Pro Plan',
+          planCode: s.planCode || s.plan?.code || 'pro',
+          planPrice: Number(s.planPrice || s.plan?.price || 0),
+          amount: Number(s.amountPaid || s.amount || 0),
+          amountPaid: Number(s.amountPaid || s.amount || 0),
+          currency: s.currency || 'INR',
+          status: (s.subscriptionStatus?.toLowerCase() || s.status?.toLowerCase() || 'active') as SubscriptionStatus,
+          purchaseDate: s.createdAt || new Date().toISOString(),
+          startDate: s.startDate ? new Date(s.startDate).toISOString().split('T')[0] : 'N/A',
+          expiryDate: s.expiryDate ? new Date(s.expiryDate).toISOString().split('T')[0] : 'N/A',
+          nextRenewalDate: s.nextRenewalDate ? new Date(s.nextRenewalDate).toISOString().split('T')[0] : null,
+          trialStartDate: s.trialStartDate ? new Date(s.trialStartDate).toISOString().split('T')[0] : null,
+          trialEndDate: s.trialEndDate ? new Date(s.trialEndDate).toISOString().split('T')[0] : null,
+          refundStatus: s.refundStatus || null,
+          autoRenew: s.autoRenew !== false,
+          paymentStatus: (s.paymentStatus?.toLowerCase() || 'success') as any,
+          paymentGateway: (s.paymentGateway || 'RAZORPAY') as any,
+          paymentMethod: s.paymentMethod || 'upi',
+          paymentId: s.gatewayPaymentId || s.paymentId || 'N/A',
+          transactionId: s.transactionId || s.id,
+          orderId: s.gatewayOrderId || s.orderId || 'N/A',
+          gatewayPaymentId: s.gatewayPaymentId,
+          gatewayOrderId: s.gatewayOrderId,
+          totalPaid: Number(s.amountPaid || s.amount || 0),
+          renewalCount: 0,
+          history: [],
+          createdAt: s.createdAt || new Date().toISOString(),
+          updatedAt: s.updatedAt || new Date().toISOString(),
+        }));
 
-          return {
-            id: s.id,
-            userId: s.userId || '',
-            userName: s.user?.name || 'Not available',
-            userPhone: s.user?.mobile || s.user?.phone || 'Not available',
-            userEmail: s.user?.email || 'Not available',
-            businessId: s.businessId || s.business?.id || '',
-            businessName: s.business?.name || 'Not available',
-            businessGstin: s.business?.gstin || undefined,
-            businessCity: s.business?.city || undefined,
-            businessState: s.business?.state || undefined,
-            planId: s.planId || '',
-            planName: s.plan?.name || (s.planCode === 'pro_yearly' ? 'Pro Annual' : 'Pro Plan'),
-            planCode: s.plan?.code || s.planCode || 'yearly',
-            planPrice: Number(s.amount || s.plan?.price || 0),
-            amount: Number(s.amount || s.plan?.price || 0),
-            amountPaid: Number(s.amount || s.plan?.price || 0),
-            currency: s.currency || 'INR',
-            status: (s.status?.toLowerCase() as SubscriptionStatus) || 'active',
-            purchaseDate: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
-            startDate: startFormatted,
-            expiryDate: expiryFormatted,
-            autoRenew: s.autoRenew !== false,
-            paymentStatus: firstTx?.status?.toLowerCase() === 'captured' || firstTx?.status?.toLowerCase() === 'success' || s.status?.toUpperCase() === 'ACTIVE' ? 'success' : (firstTx?.status?.toLowerCase() || 'pending'),
-            paymentGateway: (firstTx?.gateway?.toLowerCase() || s.paymentProvider?.toLowerCase() || 'razorpay') as any,
-            paymentMethod: firstTx?.method || 'upi',
-            paymentId: firstTx?.providerPaymentId || s.providerSubscriptionId || s.paymentId || 'Not available',
-            transactionId: firstTx?.id || s.id,
-            orderId: firstTx?.providerOrderId || s.orderId || 'Not available',
-            totalPaid: Number(s.amount || s.plan?.price || 0),
-            renewalCount: 0,
-            history: [],
-            createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
-            updatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : new Date().toISOString(),
-          };
-        });
+        return {
+          subscriptions,
+          total: Number(json.data.total || subscriptions.length),
+          page: Number(json.data.page || 1),
+          limit: Number(json.data.limit || 20),
+          totalPages: Number(json.data.totalPages || Math.ceil(Number(json.data.total || 0) / (filters?.limit || 20)) || 1),
+        };
       }
     } catch (err) {
-      console.warn('[SubscriptionService] Error fetching subscribers from backend:', err);
+      console.warn('[SubscriptionService] Error fetching advanced subscribers:', err);
     }
 
-    return [];
+    return {
+      subscriptions: [],
+      total: 0,
+      page: 1,
+      limit: filters?.limit || 20,
+      totalPages: 1,
+    };
+  }
+
+  async getSubscriptionDetail(id: string): Promise<any> {
+    const token = adminAuthService.getAdminToken();
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/subscribers/${id}/detail`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.data) {
+        return json.data;
+      }
+    } catch (err) {
+      console.error('[SubscriptionService] Error fetching detail:', err);
+    }
+    return null;
+  }
+
+  async exportSubscriptionsCSV(filters?: any): Promise<string> {
+    const token = adminAuthService.getAdminToken();
+    const query = new URLSearchParams();
+    if (filters?.search) query.set('search', filters.search);
+    if (filters?.dateRange) query.set('dateRange', filters.dateRange);
+    if (filters?.startDate) query.set('startDate', filters.startDate);
+    if (filters?.endDate) query.set('endDate', filters.endDate);
+    if (filters?.plan) query.set('plan', filters.plan);
+    if (filters?.billingCycle) query.set('billingCycle', filters.billingCycle);
+    if (filters?.paymentStatus) query.set('paymentStatus', filters.paymentStatus);
+    if (filters?.subscriptionStatus) query.set('subscriptionStatus', filters.subscriptionStatus);
+
+    const res = await fetch(`${API_BASE_URL}/admin/subscribers/export/csv?${query.toString()}`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error('Failed to export CSV');
+    }
+    return res.text();
+  }
+
+  async getSubscribers(filters?: {
+    search?: string;
+    status?: SubscriptionStatus | 'all';
+    planCode?: string | 'all';
+    expiringWithinDays?: number;
+    autoRenew?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<Subscription[]> {
+    const result = await this.getSubscribersAdvanced(filters as any);
+    return result.subscriptions;
   }
 
   async getSubscriberById(id: string): Promise<Subscription | null> {

@@ -62,7 +62,7 @@ export const adminUsersService = {
     name: string;
     email: string;
     password: string;
-    role: 'MANAGER' | 'ACCOUNTANT' | 'CONTENT_MANAGER' | 'SUPPORT';
+    role: 'ADMIN' | 'COO' | 'CMO' | 'MANAGER' | 'ACCOUNTANT' | 'CONTENT_MANAGER' | 'SUPPORT';
     phone?: string;
   }): Promise<{ success: boolean; data?: AdminUser; error?: string }> {
     const token = adminAuthService.getAdminToken();
@@ -182,6 +182,35 @@ export const adminUsersService = {
       };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Network error updating admin role' };
+    }
+  },
+
+  async resetAdminPassword(id: string): Promise<{ success: boolean; temporaryPassword?: string; error?: string }> {
+    const token = adminAuthService.getAdminToken();
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/admin-users/${id}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const json = await response.json().catch(() => null);
+      if (response.ok && json?.success) {
+        return {
+          success: true,
+          temporaryPassword: json.data?.temporaryPassword,
+        };
+      }
+
+      return {
+        success: false,
+        error: json?.message || json?.error?.message || 'Failed to trigger password reset',
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error triggering password reset' };
     }
   },
 

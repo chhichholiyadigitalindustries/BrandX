@@ -41,28 +41,31 @@ router.get('/profile', adminController.getProfile);
 router.patch('/profile', validateBody(updateAdminProfileSchema), adminController.updateProfile);
 router.post('/profile/password', validateBody(changeAdminPasswordSchema), adminController.changePassword);
 
-// Dashboard overview (All admin roles)
-router.get('/overview', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT']), adminController.getOverview);
+// Dashboard overview (SUPER_ADMIN, ADMIN, COO, CMO, MANAGER, ACCOUNTANT)
+router.get('/overview', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'MANAGER', 'ACCOUNTANT']), adminController.getOverview);
 
-// User and business directory (Super Admin, Admin, Manager - Accountant excluded)
-router.get('/users', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), adminController.listUsers);
-router.patch('/users/:userId/status', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), validateBody(updatePlatformUserStatusSchema), adminController.updateUserStatus);
-router.get('/businesses', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), adminController.listBusinesses);
+// User and business directory (Super Admin, Admin, COO, Manager)
+router.get('/users', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'MANAGER']), adminController.listUsers);
+router.patch('/users/:userId/status', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), validateBody(updatePlatformUserStatusSchema), adminController.updateUserStatus);
+router.get('/businesses', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'MANAGER']), adminController.listBusinesses);
 
-// Pro subscription & revenue management
-router.get('/revenue', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT', 'FINANCE']), adminController.getRevenueSummary);
-router.get('/subscribers', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT', 'FINANCE']), adminController.listSubscribers);
-router.get('/payments', requireRoles(['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'FINANCE']), adminController.listPayments);
-router.get('/refunds', requireRoles(['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'FINANCE']), adminController.listRefunds);
+// Pro subscription & revenue management (SUPER_ADMIN, ADMIN, COO, CMO, ACCOUNTANT, FINANCE)
+router.get('/revenue', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'ACCOUNTANT', 'FINANCE']), adminController.getRevenueSummary);
+router.get('/revenue/summary', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'ACCOUNTANT', 'FINANCE']), adminController.getRevenueSummary);
+router.get('/subscribers/export/csv', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'ACCOUNTANT', 'FINANCE']), adminController.exportSubscriptionsCsv);
+router.get('/subscribers/:id/detail', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'ACCOUNTANT', 'FINANCE']), adminController.getSubscriptionDetail);
+router.get('/subscribers', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'ACCOUNTANT', 'FINANCE']), adminController.listSubscribers);
+router.get('/payments', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'ACCOUNTANT', 'FINANCE']), adminController.listPayments);
+router.get('/refunds', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'ACCOUNTANT', 'FINANCE']), adminController.listRefunds);
 router.post(
   '/refunds',
-  requireRoles(['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'FINANCE']),
+  requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'ACCOUNTANT', 'FINANCE']),
   validateBody(adminRefundSchema),
   adminController.processRefund
 );
 
 // Subscription Plans Management
-router.get('/plans', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT']), adminController.listPlans);
+router.get('/plans', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'ACCOUNTANT']), adminController.listPlans);
 router.post(
   '/plans',
   requireRoles(['SUPER_ADMIN', 'ADMIN']),
@@ -220,14 +223,17 @@ router.post('/content/daily', requireRoles(['SUPER_ADMIN', 'ADMIN', 'CONTENT_MAN
 router.post('/content/posters', requireRoles(['SUPER_ADMIN', 'ADMIN', 'CONTENT_MANAGER', 'MANAGER']), adminController.createPosterTemplate);
 router.post('/content/festivals', requireRoles(['SUPER_ADMIN', 'ADMIN', 'CONTENT_MANAGER', 'MANAGER']), adminController.createFestival);
 
-// Admin team management (SUPER_ADMIN only)
-router.get('/admin-users', requireRoles(['SUPER_ADMIN']), adminController.listAdminUsers);
+// Admin team management
+router.get('/admin-users', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), adminController.listAdminUsers);
 router.post('/admin-users', requireRoles(['SUPER_ADMIN']), validateBody(createAdminUserSchema), adminController.createAdminUser);
-router.patch('/admin-users/:id/status', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminStatusSchema), adminController.updateAdminStatus);
+router.patch('/admin-users/:id/status', requireRoles(['SUPER_ADMIN', 'ADMIN']), validateBody(updateAdminStatusSchema), adminController.updateAdminStatus);
+router.put('/admin-users/:id/status', requireRoles(['SUPER_ADMIN', 'ADMIN']), validateBody(updateAdminStatusSchema), adminController.updateAdminStatus);
 router.patch('/admin-users/:id/role', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminRoleSchema), adminController.updateAdminRole);
+router.put('/admin-users/:id/role', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminRoleSchema), adminController.updateAdminRole);
+router.post('/admin-users/:id/reset-password', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), adminController.resetAdminPassword);
 
-// Audit logs (SUPER_ADMIN only)
-router.get('/audit-logs', requireRoles(['SUPER_ADMIN']), adminController.listAuditLogs);
+// Audit logs (SUPER_ADMIN, ADMIN, COO)
+router.get('/audit-logs', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), adminController.listAuditLogs);
 
 // Referrals & Reward Configuration (Super Admin & Manager)
 router.get('/referrals', requireRoles(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), adminController.listReferrals);

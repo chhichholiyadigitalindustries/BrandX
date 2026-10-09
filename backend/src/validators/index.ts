@@ -706,7 +706,7 @@ export const createAdminUserSchema = z.object({
   email: z.preprocess((val) => (typeof val === 'string' ? val.trim().toLowerCase() : val), z.string().email('Valid email required')),
   phone: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().optional()),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']).default('MANAGER'),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']).default('MANAGER'),
 });
 
 export const updateAdminStatusSchema = z.object({
@@ -716,7 +716,7 @@ export const updateAdminStatusSchema = z.object({
 });
 
 export const updateAdminRoleSchema = z.object({
-  role: z.enum(['ADMIN', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']),
+  role: z.enum(['ADMIN', 'COO', 'CMO', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']),
 });
 
 export const updateAdminProfileSchema = z.object({

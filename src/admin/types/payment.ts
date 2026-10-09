@@ -101,6 +101,12 @@ export interface Subscription {
   history: SubscriptionHistoryEvent[];
   createdAt: string;
   updatedAt: string;
+  nextRenewalDate?: string | null;
+  trialStartDate?: string | null;
+  trialEndDate?: string | null;
+  refundStatus?: string | null;
+  gatewayPaymentId?: string | null;
+  gatewayOrderId?: string | null;
 }
 
 export interface SafePaymentMethodDetails {
@@ -209,9 +215,30 @@ export interface RevenueSummary {
   renewalsThisMonth: number;
   cancelledThisMonth: number;
   failedPaymentsCount: number;
+  failedPaymentsAmount?: number;
+  pendingPaymentsCount?: number;
+  pendingPaymentsAmount?: number;
+  totalCapturedTransactions?: number;
+  activePaidSubscribers?: number;
+  activeMonthlySubscribers?: number;
+  activeYearlySubscribers?: number;
+  activeTrialUsers?: number;
+  expiredSubscriptions?: number;
+  cancelledSubscriptions?: number;
+  refundsCount?: number;
   grossRevenue: number;
   totalRefunds: number;
+  totalRefundsAmount?: number;
   netRevenue: number;
+  revenueTrend?: Array<{ date: string; gross: number; refunds: number; net: number; count: number }>;
+  planBreakdown?: Array<{
+    planCode: string;
+    planName: string;
+    billingCycle: string;
+    price: number;
+    subscribersCount: number;
+    revenue: number;
+  }>;
   monthlyRevenueBreakdown: MonthlyRevenueItem[];
   dailyRevenueBreakdown: DailyRevenueItem[];
   revenueByPlan: PlanRevenueDistribution[];

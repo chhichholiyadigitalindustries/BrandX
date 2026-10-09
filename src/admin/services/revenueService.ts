@@ -28,17 +28,16 @@ class RevenueService {
       if (res.ok && json?.data) {
         const d = json.data;
         const totalRev = Number(d.totalRevenue || 0);
-        const currentMonthRev = Number(d.currentMonthRevenue || 0);
-        const prevMonthRev = Number(d.previousMonthRevenue || 0);
-        const refundsAmount = Number(d.totalRefundsAmount || 0);
-        const netRev = Number(d.netRevenue || totalRev - refundsAmount);
+        const currentMonthRev = Number(d.revenueThisMonth || d.currentMonthRevenue || 0);
+        const todayRev = Number(d.revenueToday || 0);
+        const thisYearRev = Number(d.revenueThisYear || totalRev);
+        const refundsAmount = Number(d.totalRefundsAmount || d.totalRefunds || 0);
+        const netRev = Number(d.netRevenue || Math.max(0, totalRev - refundsAmount));
 
-        const momGrowth = prevMonthRev > 0
-          ? Math.round(((currentMonthRev - prevMonthRev) / prevMonthRev) * 100)
-          : (currentMonthRev > 0 ? 100 : 0);
+        const monthlyCount = d.activeMonthlySubscribers ?? d.monthlySubscribers ?? 0;
+        const yearlyCount = d.activeYearlySubscribers ?? d.yearlySubscribers ?? 0;
+        const activePaid = d.activePaidSubscribers ?? (monthlyCount + yearlyCount);
 
-        const monthlyCount = d.monthlySubscribers || 0;
-        const yearlyCount = d.yearlySubscribers || 0;
         const monthlyRev = monthlyCount * 349;
         const yearlyRev = yearlyCount * 2999;
         const calcTotal = (monthlyRev + yearlyRev) || totalRev || 1;
@@ -47,38 +46,59 @@ class RevenueService {
 
         const revenueByPlan = [];
         if (monthlyCount > 0 || (monthlyCount === 0 && yearlyCount === 0)) {
-          revenueByPlan.push({ planName: 'Monthly Pro', count: monthlyCount, revenue: monthlyRev, percentage: monthlyPct });
+          revenueByPlan.push({ planName: 'Pro Monthly (₹349)', count: monthlyCount, revenue: monthlyRev, percentage: monthlyPct });
         }
         if (yearlyCount > 0) {
-          revenueByPlan.push({ planName: 'Yearly Pro', count: yearlyCount, revenue: yearlyRev, percentage: yearlyPct });
+          revenueByPlan.push({ planName: 'Pro Annual (₹2,999)', count: yearlyCount, revenue: yearlyRev, percentage: yearlyPct });
         }
+
+        // Daily trend
+        const dailyRevenueBreakdown = (d.revenueTrend || []).map((t: any) => ({
+          date: t.date,
+          revenue: t.net ?? t.gross,
+          transactions: t.count,
+        }));
 
         return {
           totalRevenue: totalRev,
-          revenueToday: 0,
+          revenueToday: todayRev,
           revenueThisMonth: currentMonthRev,
-          revenueThisYear: totalRev,
-          revenueGrowthMoM: momGrowth,
-          totalSubscribers: d.activeSubscribers || 0,
-          activeProSubscribers: d.activeProSubscribers || 0,
-          newSubscribersThisMonth: d.monthlySubscribers || 0,
-          renewalsThisMonth: 0,
-          cancelledThisMonth: 0,
-          failedPaymentsCount: d.totalFailedTransactions || 0,
-          grossRevenue: totalRev,
+          revenueThisYear: thisYearRev,
+          revenueGrowthMoM: 0,
+          totalSubscribers: activePaid,
+          activeProSubscribers: activePaid,
+          activePaidSubscribers: activePaid,
+          activeMonthlySubscribers: monthlyCount,
+          activeYearlySubscribers: yearlyCount,
+          activeTrialUsers: Number(d.activeTrialUsers || 0),
+          expiredSubscriptions: Number(d.expiredSubscriptions || 0),
+          cancelledSubscriptions: Number(d.cancelledSubscriptions || 0),
+          totalCapturedTransactions: Number(d.totalCapturedTransactions || 0),
+          pendingPaymentsCount: Number(d.pendingPaymentsCount || 0),
+          pendingPaymentsAmount: Number(d.pendingPaymentsAmount || 0),
+          failedPaymentsCount: Number(d.failedPaymentsCount || 0),
+          failedPaymentsAmount: Number(d.failedPaymentsAmount || 0),
+          refundsCount: Number(d.refundsCount || 0),
           totalRefunds: refundsAmount,
+          totalRefundsAmount: refundsAmount,
+          newSubscribersThisMonth: monthlyCount,
+          renewalsThisMonth: 0,
+          cancelledThisMonth: Number(d.cancelledSubscriptions || 0),
+          grossRevenue: totalRev,
           netRevenue: netRev,
+          revenueTrend: d.revenueTrend || [],
+          planBreakdown: d.planBreakdown || [],
           monthlyRevenueBreakdown: [],
-          dailyRevenueBreakdown: [],
+          dailyRevenueBreakdown,
           revenueByPlan,
           revenueByGateway: [
             { gateway: 'Razorpay', count: d.totalCapturedTransactions || (totalRev > 0 ? 1 : 0), volume: totalRev },
           ],
           paymentStatusDistribution: {
             success: d.totalCapturedTransactions || 0,
-            pending: 0,
-            failed: d.totalFailedTransactions || 0,
-            refunded: refundsAmount > 0 ? 1 : 0,
+            pending: d.pendingPaymentsCount || 0,
+            failed: d.failedPaymentsCount || 0,
+            refunded: refundsAmount > 0 ? (d.refundsCount || 1) : 0,
           },
         };
       }
@@ -94,13 +114,27 @@ class RevenueService {
       revenueGrowthMoM: 0,
       totalSubscribers: 0,
       activeProSubscribers: 0,
+      activePaidSubscribers: 0,
+      activeMonthlySubscribers: 0,
+      activeYearlySubscribers: 0,
+      activeTrialUsers: 0,
+      expiredSubscriptions: 0,
+      cancelledSubscriptions: 0,
+      totalCapturedTransactions: 0,
+      pendingPaymentsCount: 0,
+      pendingPaymentsAmount: 0,
+      failedPaymentsCount: 0,
+      failedPaymentsAmount: 0,
+      refundsCount: 0,
       newSubscribersThisMonth: 0,
       renewalsThisMonth: 0,
       cancelledThisMonth: 0,
-      failedPaymentsCount: 0,
       grossRevenue: 0,
       totalRefunds: 0,
+      totalRefundsAmount: 0,
       netRevenue: 0,
+      revenueTrend: [],
+      planBreakdown: [],
       monthlyRevenueBreakdown: [],
       dailyRevenueBreakdown: [],
       revenueByPlan: [],

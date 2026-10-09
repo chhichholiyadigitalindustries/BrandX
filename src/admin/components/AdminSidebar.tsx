@@ -22,7 +22,10 @@ export const AdminSidebar: React.FC = () => {
 
   const role = (admin?.role || 'SUPER_ADMIN').toUpperCase();
   const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
+  const isCoo = role === 'COO';
+  const isCmo = role === 'CMO';
   const isManager = role === 'MANAGER';
+  const isContentManager = role === 'CONTENT_MANAGER';
   const isAccountant = role === 'ACCOUNTANT';
 
   // Role-filtered navigation lists
@@ -51,27 +54,31 @@ export const AdminSidebar: React.FC = () => {
   ];
 
   const allSystemNavItems: NavItem[] = [
-    { route: 'admin-users', label: 'Admin Users', icon: 'admin_panel_settings' },
+    { route: 'admin-users', label: 'Organization & Team', icon: 'admin_panel_settings' },
     { route: 'audit-logs', label: 'Audit Logs', icon: 'history_edu' },
     { route: 'settings', label: 'Settings', icon: 'settings' },
   ];
 
   const mainNavItems = allMainNavItems.filter((item) => {
-    if (isSuperAdmin) return true;
+    if (isSuperAdmin || isCoo) return true;
+    if (isCmo) return ['dashboard', 'daily-status', 'posters', 'festivals', 'announcements', 'reports'].includes(item.route);
+    if (isContentManager) return ['dashboard', 'daily-status', 'posters', 'festivals', 'announcements'].includes(item.route);
     if (isManager) return true;
     if (isAccountant) return ['dashboard', 'invoices', 'reports'].includes(item.route);
     return ['dashboard'].includes(item.route);
   });
 
   const financeNavItems = allFinanceNavItems.filter((item) => {
-    if (isSuperAdmin) return true;
+    if (isSuperAdmin || isCoo) return true;
+    if (isCmo) return ['revenue', 'subscribers', 'plans'].includes(item.route);
     if (isAccountant) return true;
     if (isManager) return ['subscribers', 'plans'].includes(item.route);
     return false;
   });
 
-  const systemNavItems = allSystemNavItems.filter(() => {
+  const systemNavItems = allSystemNavItems.filter((item) => {
     if (isSuperAdmin) return true;
+    if (isCoo) return ['admin-users', 'audit-logs'].includes(item.route);
     return false;
   });
 

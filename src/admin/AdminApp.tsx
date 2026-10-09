@@ -57,7 +57,10 @@ const AdminRouteDispatcher: React.FC = () => {
   // Role permissions checking
   const role = (admin?.role || 'SUPER_ADMIN').toUpperCase();
   const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
+  const isCoo = role === 'COO';
+  const isCmo = role === 'CMO';
   const isManager = role === 'MANAGER';
+  const isContentManager = role === 'CONTENT_MANAGER';
   const isAccountant = role === 'ACCOUNTANT';
 
   // Check if current route is allowed for user's role
@@ -67,8 +70,33 @@ const AdminRouteDispatcher: React.FC = () => {
     isAllowed = true;
   } else if (isSuperAdmin) {
     isAllowed = true;
+  } else if (isCoo) {
+    // COO has access to all operational & subscription/revenue features, team viewing, audit logs, but not settings
+    isAllowed = currentRoute !== 'settings';
+  } else if (isCmo) {
+    // CMO has marketing dashboard, approved revenue analytics, subscribers, plans, CMS, announcements, reports
+    isAllowed = [
+      'dashboard',
+      'revenue',
+      'subscribers',
+      'plans',
+      'daily-status',
+      'posters',
+      'festivals',
+      'announcements',
+      'reports',
+    ].includes(currentRoute);
+  } else if (isContentManager) {
+    // Content managers only have access to posters, daily status, festivals, announcements
+    isAllowed = [
+      'dashboard',
+      'daily-status',
+      'posters',
+      'festivals',
+      'announcements',
+    ].includes(currentRoute);
   } else if (isManager) {
-    // Managers can access operational features, CMS, referrals, and reports, but NOT payments, refunds, withdrawals, admin users, audit logs, or settings
+    // Managers can access operational features, CMS, referrals, and reports, but NOT payments, refunds, withdrawals, revenue, admin users, audit logs, or settings
     isAllowed = ![
       'payments',
       'revenue',
@@ -79,7 +107,7 @@ const AdminRouteDispatcher: React.FC = () => {
       'settings',
     ].includes(currentRoute);
   } else if (isAccountant) {
-    // Accountants can access financial modules & withdrawals, but NOT users, businesses, CMS, AI, Khata, referrals, admin users, audit logs, or settings
+    // Accountants can access financial modules & withdrawals
     isAllowed = [
       'dashboard',
       'revenue',
