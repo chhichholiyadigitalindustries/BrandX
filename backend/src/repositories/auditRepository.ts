@@ -83,6 +83,31 @@ export class AuditRepository {
       throw err;
     }
   }
+
+  async listForTarget(targetId: string, limit = 50): Promise<AuditLog[]> {
+    try {
+      return await prisma.auditLog.findMany({
+        where: {
+          OR: [
+            { entity: 'AdminUser', entityId: targetId },
+            { actorId: targetId },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+    } catch {
+      const rows: any[] = (await prisma.$queryRawUnsafe(
+        `SELECT "id", "actorId", "actorType", "action", "entity", "entityId", "ipAddress", "userAgent", "details" as metadata, "createdAt"
+         FROM "AuditLog"
+         WHERE ("entity" = 'AdminUser' AND "entityId" = $1) OR "actorId" = $1
+         ORDER BY "createdAt" DESC LIMIT $2`,
+        targetId,
+        limit
+      ).catch(() => [])) as any[];
+      return rows as AuditLog[];
+    }
+  }
 }
 
 export const auditRepository = new AuditRepository();

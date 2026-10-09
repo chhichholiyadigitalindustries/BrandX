@@ -307,6 +307,8 @@ model AdminUser {
   name             String
   email            String       @unique
   phone            String?
+  designation      String?
+  department       String?
   passwordHash     String
   role             AdminRole    @default(MANAGER)
   status           UserStatus   @default(ACTIVE)

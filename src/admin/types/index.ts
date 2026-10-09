@@ -28,6 +28,8 @@ export interface AdminUser {
   name: string;
   email: string;
   role: AdminRole;
+  designation?: string;
+  department?: string;
   avatarUrl?: string;
   phone?: string;
   status: 'active' | 'suspended' | 'pending' | 'ACTIVE' | 'SUSPENDED';

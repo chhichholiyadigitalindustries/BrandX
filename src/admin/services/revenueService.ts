@@ -11,11 +11,14 @@ import { API_BASE_URL } from '../../config/env';
 
 
 class RevenueService {
-  async getRevenueSummary(timeframe: RevenueDateFilter = 'all_time'): Promise<RevenueSummary> {
+  async getRevenueSummary(timeframe: RevenueDateFilter = 'all_time', startDate?: string, endDate?: string): Promise<RevenueSummary> {
     const token = adminAuthService.getAdminToken();
 
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/revenue`, {
+      const queryParams = new URLSearchParams({ timeframe });
+      if (startDate) queryParams.set('startDate', startDate);
+      if (endDate) queryParams.set('endDate', endDate);
+      const res = await fetch(`${API_BASE_URL}/admin/revenue?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

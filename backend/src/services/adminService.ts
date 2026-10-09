@@ -93,19 +93,17 @@ export class AdminService {
   }
 
   async createAdminUser(data: any, creatorAdminId?: string) {
-    const existing = await adminRepository.findByEmail(data.email);
+    const cleanEmail = (data.email || '').trim().toLowerCase();
+    const existing = await adminRepository.findByEmail(cleanEmail);
     if (existing) throw new Error('An admin with this email already exists');
-
-    // Prevent creating additional SUPER_ADMIN via employee creation API
-    if (data.role === 'SUPER_ADMIN') {
-      throw new Error('Creating Super Admin accounts is not permitted via employee creation');
-    }
 
     const passwordHash = await hashPassword(data.password);
     const newAdmin = await adminRepository.create({
-      name: data.name,
-      email: data.email,
-      phone: data.phone || null,
+      name: data.name?.trim(),
+      email: cleanEmail,
+      phone: data.phone?.trim() || null,
+      designation: data.designation?.trim() || null,
+      department: data.department?.trim() || null,
       passwordHash,
       role: data.role || 'MANAGER',
       isActive: true,
@@ -118,10 +116,109 @@ export class AdminService {
       action: 'ADMIN_USER_CREATED',
       entity: 'AdminUser',
       entityId: newAdmin.id,
-      metadata: { email: newAdmin.email, role: newAdmin.role },
+      metadata: {
+        email: newAdmin.email,
+        role: newAdmin.role,
+        designation: newAdmin.designation,
+        department: newAdmin.department,
+      },
     });
 
     return newAdmin;
+  }
+
+  async updateAdminUser(adminId: string, data: any, actorAdminId?: string) {
+    const target = await adminRepository.findById(adminId);
+    if (!target) throw new Error('Admin user not found');
+
+    const updatePayload: any = {};
+
+    if (data.name !== undefined) {
+      updatePayload.name = data.name.trim();
+    }
+
+    if (data.email !== undefined) {
+      const normalizedEmail = data.email.trim().toLowerCase();
+      if (normalizedEmail !== target.email.toLowerCase()) {
+        const existingWithEmail = await adminRepository.findByEmail(normalizedEmail);
+        if (existingWithEmail && existingWithEmail.id !== adminId) {
+          throw new Error('Email address is already in use by another team member');
+        }
+        updatePayload.email = normalizedEmail;
+      }
+    }
+
+    if (data.phone !== undefined) {
+      updatePayload.phone = data.phone ? data.phone.trim() : null;
+    }
+
+    if (data.designation !== undefined) {
+      updatePayload.designation = data.designation ? data.designation.trim() : null;
+    }
+
+    if (data.department !== undefined) {
+      updatePayload.department = data.department ? data.department.trim() : null;
+    }
+
+    if (data.role !== undefined && data.role !== target.role) {
+      if (actorAdminId && actorAdminId === adminId) {
+        throw new Error('Self-promotion or modifying your own privileged role is strictly forbidden');
+      }
+
+      if (target.role === 'SUPER_ADMIN' && data.role !== 'SUPER_ADMIN') {
+        const activeSuperAdmins = await prisma.adminUser.count({
+          where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE' },
+        });
+        if (activeSuperAdmins <= 1) {
+          throw new Error('Cannot demote or change the role of the last remaining Super Admin');
+        }
+      }
+      updatePayload.role = data.role;
+    }
+
+    if (data.status !== undefined || data.isActive !== undefined) {
+      const nextStatus = data.status || (data.isActive ? 'ACTIVE' : 'SUSPENDED');
+      const nextActive = data.isActive !== undefined ? data.isActive : nextStatus === 'ACTIVE';
+
+      if (actorAdminId && actorAdminId === adminId && (nextStatus === 'SUSPENDED' || nextActive === false)) {
+        throw new Error('Self-deactivation or modifying your own status is strictly forbidden');
+      }
+
+      if (target.role === 'SUPER_ADMIN' && (nextStatus === 'SUSPENDED' || nextActive === false)) {
+        const activeSuperAdmins = await prisma.adminUser.count({
+          where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE' },
+        });
+        if (activeSuperAdmins <= 1) {
+          throw new Error('Cannot deactivate or suspend the last remaining Super Admin account');
+        }
+      }
+      updatePayload.status = nextStatus;
+      updatePayload.isActive = nextActive;
+    }
+
+    const updated = await adminRepository.update(adminId, updatePayload);
+
+    await auditRepository.log({
+      actorId: actorAdminId,
+      actorType: 'ADMIN',
+      action: 'ADMIN_USER_UPDATED',
+      entity: 'AdminUser',
+      entityId: adminId,
+      metadata: {
+        targetEmail: target.email,
+        previous: {
+          name: target.name,
+          email: target.email,
+          role: target.role,
+          status: target.status,
+          designation: target.designation,
+          department: target.department,
+        },
+        updated: updatePayload,
+      },
+    });
+
+    return updated;
   }
 
   async updateAdminStatus(adminId: string, status: 'ACTIVE' | 'SUSPENDED', isActive?: boolean, reason?: string, actorAdminId?: string) {
@@ -159,7 +256,7 @@ export class AdminService {
     return updated;
   }
 
-  async updateAdminRole(adminId: string, role: any, actorAdminId?: string) {
+  async updateAdminRole(adminId: string, role: any, designation?: string, actorAdminId?: string) {
     if (actorAdminId && actorAdminId === adminId) {
       throw new Error('Self-promotion or modifying your own privileged role is strictly forbidden');
     }
@@ -176,11 +273,12 @@ export class AdminService {
       }
     }
 
-    if (role === 'SUPER_ADMIN') {
-      throw new Error('Assigning Super Admin role is not permitted via role update');
+    const updatePayload: any = { role };
+    if (designation !== undefined) {
+      updatePayload.designation = designation ? designation.trim() : null;
     }
 
-    const updated = await adminRepository.update(adminId, { role });
+    const updated = await adminRepository.update(adminId, updatePayload);
 
     await auditRepository.log({
       actorId: actorAdminId,
@@ -188,10 +286,60 @@ export class AdminService {
       action: 'ADMIN_ROLE_CHANGED',
       entity: 'AdminUser',
       entityId: adminId,
-      metadata: { oldRole: target.role, newRole: role, targetEmail: target.email },
+      metadata: {
+        oldRole: target.role,
+        newRole: role,
+        targetEmail: target.email,
+        designation: updatePayload.designation,
+      },
     });
 
     return updated;
+  }
+
+  async deleteAdminUser(adminId: string, actorAdminId?: string, reason?: string) {
+    if (actorAdminId && actorAdminId === adminId) {
+      throw new Error('Self-deletion is strictly forbidden to protect account access');
+    }
+
+    const target = await adminRepository.findById(adminId);
+    if (!target) throw new Error('Admin user not found');
+
+    if (target.role === 'SUPER_ADMIN') {
+      const activeSuperAdmins = await prisma.adminUser.count({
+        where: { role: 'SUPER_ADMIN', isActive: true, status: 'ACTIVE' },
+      });
+      if (activeSuperAdmins <= 1) {
+        throw new Error('Cannot permanently delete the last remaining Super Admin account');
+      }
+    }
+
+    // Record audit entry before deletion to preserve full audit and accountability history
+    await auditRepository.log({
+      actorId: actorAdminId,
+      actorType: 'ADMIN',
+      action: 'ADMIN_USER_DELETED',
+      entity: 'AdminUser',
+      entityId: adminId,
+      metadata: {
+        targetName: target.name,
+        targetEmail: target.email,
+        targetRole: target.role,
+        targetDesignation: target.designation,
+        targetDepartment: target.department,
+        reason: reason || 'Permanently removed by Super Admin',
+      },
+    });
+
+    await adminRepository.delete(adminId);
+
+    return {
+      success: true,
+      id: adminId,
+      email: target.email,
+      name: target.name,
+      message: `Account ${target.name} (${target.email}) permanently deleted.`,
+    };
   }
 
   async resetAdminPassword(adminId: string, actorAdminId?: string) {
@@ -219,6 +367,10 @@ export class AdminService {
       temporaryPassword: tempPassword,
       message: 'Secure password reset completed. Temporary credentials generated.',
     };
+  }
+
+  async getAdminUserAuditLogs(adminId: string, limit: number = 50) {
+    return auditRepository.listForTarget(adminId, limit);
   }
 
   async listAuditLogs(limit: number = 100) {

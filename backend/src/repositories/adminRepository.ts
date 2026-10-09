@@ -4,8 +4,6 @@ import { AdminUser, Prisma } from '@prisma/client';
 const appRoleMap = new Map<string, string>();
 
 export function mapRoleToDb(role?: string): string {
-  if (role === 'MANAGER') return 'ADMIN';
-  if (role === 'ACCOUNTANT') return 'FINANCE';
   return role || 'ADMIN';
 }
 
@@ -33,7 +31,7 @@ export class AdminRepository {
     }
 
     const rows = (await prisma.$queryRawUnsafe<any[]>(
-      `SELECT id, name, email, phone, "passwordHash", role, status, "avatarUrl", "lastLogin", "createdAt", "updatedAt"
+      `SELECT id, name, email, phone, designation, department, "passwordHash", role, status, "avatarUrl", "lastLogin", "createdAt", "updatedAt"
        FROM "AdminUser" WHERE email = $1 LIMIT 1`,
       email
     ).catch(() => [])) || [];
@@ -66,7 +64,7 @@ export class AdminRepository {
     }
 
     const rows = (await prisma.$queryRawUnsafe<any[]>(
-      `SELECT id, name, email, phone, "passwordHash", role, status, "avatarUrl", "lastLogin", "createdAt", "updatedAt"
+      `SELECT id, name, email, phone, designation, department, "passwordHash", role, status, "avatarUrl", "lastLogin", "createdAt", "updatedAt"
        FROM "AdminUser" WHERE id = $1 LIMIT 1`,
       id
     ).catch(() => [])) || [];
@@ -109,12 +107,14 @@ export class AdminRepository {
       };
     } catch {
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "AdminUser" ("id", "name", "email", "phone", "passwordHash", "role", "status", "avatarUrl", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, $5, CAST($6 AS "AdminRole"), CAST($7 AS "UserStatus"), $8, NOW(), NOW())`,
+        `INSERT INTO "AdminUser" ("id", "name", "email", "phone", "designation", "department", "passwordHash", "role", "status", "avatarUrl", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, CAST($8 AS "AdminRole"), CAST($9 AS "UserStatus"), $10, NOW(), NOW())`,
         id,
         data.name,
         data.email,
         data.phone || null,
+        data.designation || null,
+        data.department || null,
         data.passwordHash,
         dbRole,
         (data.status as string) || 'ACTIVE',
@@ -125,6 +125,8 @@ export class AdminRepository {
         name: data.name,
         email: data.email,
         phone: data.phone || null,
+        designation: data.designation || null,
+        department: data.department || null,
         passwordHash: data.passwordHash,
         role: roleStr as any,
         status: data.status || 'ACTIVE',
@@ -152,9 +154,21 @@ export class AdminRepository {
         updates.push(`"name" = $${idx++}`);
         values.push(data.name);
       }
+      if (data.email !== undefined) {
+        updates.push(`"email" = $${idx++}`);
+        values.push(data.email);
+      }
       if (data.phone !== undefined) {
         updates.push(`"phone" = $${idx++}`);
         values.push(data.phone);
+      }
+      if (data.designation !== undefined) {
+        updates.push(`"designation" = $${idx++}`);
+        values.push(data.designation);
+      }
+      if (data.department !== undefined) {
+        updates.push(`"department" = $${idx++}`);
+        values.push(data.department);
       }
       if (data.passwordHash !== undefined) {
         updates.push(`"passwordHash" = $${idx++}`);
@@ -173,6 +187,10 @@ export class AdminRepository {
         updates.push(`"status" = CAST($${idx++} AS "UserStatus")`);
         values.push(data.status);
       }
+      if (data.isActive !== undefined) {
+        updates.push(`"isActive" = $${idx++}`);
+        values.push(data.isActive);
+      }
       if (data.avatarUrl !== undefined) {
         updates.push(`"avatarUrl" = $${idx++}`);
         values.push(data.avatarUrl);
@@ -190,6 +208,16 @@ export class AdminRepository {
     }
   }
 
+  async delete(id: string): Promise<boolean> {
+    try {
+      await prisma.adminUser.delete({ where: { id } });
+      return true;
+    } catch {
+      await prisma.$executeRawUnsafe(`DELETE FROM "AdminUser" WHERE id = $1`, id);
+      return true;
+    }
+  }
+
   async listAdminUsers(): Promise<AdminUser[]> {
     try {
       const users = await prisma.adminUser.findMany({
@@ -201,7 +229,7 @@ export class AdminRepository {
       }));
     } catch {
       const rows = (await prisma.$queryRawUnsafe<any[]>(
-        `SELECT id, name, email, phone, "passwordHash", role, status, "avatarUrl", "lastLogin", "createdAt", "updatedAt"
+        `SELECT id, name, email, phone, designation, department, "passwordHash", role, status, "avatarUrl", "lastLogin", "createdAt", "updatedAt"
          FROM "AdminUser" ORDER BY "createdAt" DESC`
       ).catch(() => [])) || [];
       return rows.map((r) => ({

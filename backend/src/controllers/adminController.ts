@@ -211,6 +211,25 @@ export class AdminController {
     }
   }
 
+  async updateAdminUser(req: Request, res: Response): Promise<void> {
+    try {
+      const updated = await adminService.updateAdminUser(req.params.id, req.body, req.adminUser?.id);
+      sendSuccess(res, updated, 'Admin user details updated successfully');
+    } catch (error: any) {
+      sendError(res, error.message, 400);
+    }
+  }
+
+  async deleteAdminUser(req: Request, res: Response): Promise<void> {
+    try {
+      const reason = req.body?.reason;
+      const result = await adminService.deleteAdminUser(req.params.id, req.adminUser?.id, reason);
+      sendSuccess(res, result, 'Admin user permanently deleted');
+    } catch (error: any) {
+      sendError(res, error.message, 400);
+    }
+  }
+
   async updateAdminStatus(req: Request, res: Response): Promise<void> {
     try {
       const { status, isActive, reason } = req.body;
@@ -229,10 +248,11 @@ export class AdminController {
 
   async updateAdminRole(req: Request, res: Response): Promise<void> {
     try {
-      const { role } = req.body;
+      const { role, designation } = req.body;
       const updated = await adminService.updateAdminRole(
         req.params.id,
         role,
+        designation,
         req.adminUser?.id
       );
       sendSuccess(res, updated, 'Admin role updated successfully');
@@ -245,6 +265,16 @@ export class AdminController {
     try {
       const result = await adminService.resetAdminPassword(req.params.id, req.adminUser?.id);
       sendSuccess(res, result, 'Admin password reset initiated successfully');
+    } catch (error: any) {
+      sendError(res, error.message, 400);
+    }
+  }
+
+  async getAdminUserAuditLogs(req: Request, res: Response): Promise<void> {
+    try {
+      const limit = parseInt(req.query.limit as string, 10) || 50;
+      const logs = await adminService.getAdminUserAuditLogs(req.params.id, limit);
+      sendSuccess(res, logs, 'Team member audit trail retrieved');
     } catch (error: any) {
       sendError(res, error.message, 400);
     }

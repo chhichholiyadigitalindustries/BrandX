@@ -705,8 +705,35 @@ export const createAdminUserSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters'),
   email: z.preprocess((val) => (typeof val === 'string' ? val.trim().toLowerCase() : val), z.string().email('Valid email required')),
   phone: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().optional()),
+  designation: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().optional()),
+  department: z.preprocess((val) => (typeof val === 'string' && val.trim() === '' ? undefined : val), z.string().trim().optional()),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   role: z.enum(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']).default('MANAGER'),
+});
+
+export const updateAdminUserSchema = z.object({
+  name: z.preprocess((val) => (typeof val === 'string' ? val.trim() : val), z.string().min(2, 'Name must be at least 2 characters')).optional(),
+  email: z.preprocess((val) => (typeof val === 'string' ? val.trim().toLowerCase() : val), z.string().email('Valid email required')).optional(),
+  phone: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? null : typeof val === 'string' ? val.trim() : val),
+    z.string().nullable().optional()
+  ),
+  designation: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? null : typeof val === 'string' ? val.trim() : val),
+    z.string().nullable().optional()
+  ),
+  department: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? null : typeof val === 'string' ? val.trim() : val),
+    z.string().nullable().optional()
+  ),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']).optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const deleteAdminUserSchema = z.object({
+  confirmation: z.union([z.literal('DELETE'), z.literal(true), z.boolean()]),
+  reason: z.string().trim().optional(),
 });
 
 export const updateAdminStatusSchema = z.object({
@@ -716,7 +743,11 @@ export const updateAdminStatusSchema = z.object({
 });
 
 export const updateAdminRoleSchema = z.object({
-  role: z.enum(['ADMIN', 'COO', 'CMO', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'COO', 'CMO', 'MANAGER', 'ACCOUNTANT', 'CONTENT_MANAGER', 'SUPPORT', 'FINANCE']),
+  designation: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() === '' ? null : typeof val === 'string' ? val.trim() : val),
+    z.string().nullable().optional()
+  ),
 });
 
 export const updateAdminProfileSchema = z.object({

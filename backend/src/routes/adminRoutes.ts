@@ -19,6 +19,8 @@ import {
   adminCreatePlanSchema,
   adminUpdatePlanSchema,
   adminRefundSchema,
+  updateAdminUserSchema,
+  deleteAdminUserSchema,
   updateAdminStatusSchema,
   updateAdminRoleSchema,
   updateAdminProfileSchema,
@@ -223,14 +225,18 @@ router.post('/content/daily', requireRoles(['SUPER_ADMIN', 'ADMIN', 'CONTENT_MAN
 router.post('/content/posters', requireRoles(['SUPER_ADMIN', 'ADMIN', 'CONTENT_MANAGER', 'MANAGER']), adminController.createPosterTemplate);
 router.post('/content/festivals', requireRoles(['SUPER_ADMIN', 'ADMIN', 'CONTENT_MANAGER', 'MANAGER']), adminController.createFestival);
 
-// Admin team management
+// Admin team management (SUPER_ADMIN full team control)
 router.get('/admin-users', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), adminController.listAdminUsers);
 router.post('/admin-users', requireRoles(['SUPER_ADMIN']), validateBody(createAdminUserSchema), adminController.createAdminUser);
-router.patch('/admin-users/:id/status', requireRoles(['SUPER_ADMIN', 'ADMIN']), validateBody(updateAdminStatusSchema), adminController.updateAdminStatus);
-router.put('/admin-users/:id/status', requireRoles(['SUPER_ADMIN', 'ADMIN']), validateBody(updateAdminStatusSchema), adminController.updateAdminStatus);
+router.patch('/admin-users/:id', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminUserSchema), adminController.updateAdminUser);
+router.put('/admin-users/:id', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminUserSchema), adminController.updateAdminUser);
+router.patch('/admin-users/:id/status', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminStatusSchema), adminController.updateAdminStatus);
+router.put('/admin-users/:id/status', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminStatusSchema), adminController.updateAdminStatus);
 router.patch('/admin-users/:id/role', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminRoleSchema), adminController.updateAdminRole);
 router.put('/admin-users/:id/role', requireRoles(['SUPER_ADMIN']), validateBody(updateAdminRoleSchema), adminController.updateAdminRole);
-router.post('/admin-users/:id/reset-password', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), adminController.resetAdminPassword);
+router.delete('/admin-users/:id', requireRoles(['SUPER_ADMIN']), adminController.deleteAdminUser);
+router.post('/admin-users/:id/reset-password', requireRoles(['SUPER_ADMIN']), adminController.resetAdminPassword);
+router.get('/admin-users/:id/audit-logs', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), adminController.getAdminUserAuditLogs);
 
 // Audit logs (SUPER_ADMIN, ADMIN, COO)
 router.get('/audit-logs', requireRoles(['SUPER_ADMIN', 'ADMIN', 'COO']), adminController.listAuditLogs);
