@@ -12,6 +12,10 @@ const isProduction =
   typeof import.meta !== 'undefined' &&
   (import.meta.env?.PROD === true || import.meta.env?.MODE === 'production');
 
+export const CANONICAL_DOMAIN =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CANONICAL_DOMAIN) ||
+  'https://brandxindia.com';
+
 function resolveApiBaseUrl(): string {
   if (rawApiUrl && rawApiUrl.trim()) {
     // Strip trailing slash if present
@@ -28,8 +32,13 @@ function resolveApiBaseUrl(): string {
       return runtimeUrl.trim().replace(/\/+$/, '');
     }
 
-    // If running on Render frontend domain, automatically target the live Render backend service
-    if (window.location.hostname.includes('brandx-frontend.onrender.com') || window.location.hostname.includes('onrender.com')) {
+    // If running on Render frontend domain or custom brandxindia.com domain, automatically target the live Render backend service
+    const host = window.location.hostname;
+    if (
+      host.includes('brandx-frontend.onrender.com') ||
+      host.includes('onrender.com') ||
+      host.includes('brandxindia.com')
+    ) {
       return 'https://brandx-backend-okj8.onrender.com/api/v1';
     }
   }
@@ -55,7 +64,8 @@ export function resolveBackendOrigin(): string {
       if (
         typeof window !== 'undefined' &&
         parsed.origin === window.location.origin &&
-        window.location.hostname.includes('brandx-frontend.onrender.com')
+        (window.location.hostname.includes('brandx-frontend.onrender.com') ||
+          window.location.hostname.includes('brandxindia.com'))
       ) {
         return 'https://brandx-backend-okj8.onrender.com';
       }
@@ -63,7 +73,11 @@ export function resolveBackendOrigin(): string {
     }
   } catch {}
 
-  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname.includes('onrender.com') ||
+      window.location.hostname.includes('brandxindia.com'))
+  ) {
     return 'https://brandx-backend-okj8.onrender.com';
   }
 

@@ -917,3 +917,15 @@ export const resetPasswordSchema = z.object({
   newPassword: strongPasswordSchema,
 });
 
+export const createWaitlistSchema = z.object({
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit Indian mobile number'),
+  email: z.string().trim().email('Invalid email address').optional().or(z.literal('')),
+  businessName: z.string().trim().max(150).optional().or(z.literal('')),
+  businessType: z.string().trim().max(100).optional().or(z.literal('')),
+  city: z.string().trim().max(100).optional().or(z.literal('')),
+});
+

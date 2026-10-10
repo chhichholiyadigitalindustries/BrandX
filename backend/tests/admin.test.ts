@@ -820,12 +820,12 @@ export async function runAdminTests(): Promise<void> {
     // TEST 24: Protection of SUPER_ADMIN Role
     // ------------------------------------------------------------
     console.log('\n🔹 TEST 24: Protection of SUPER_ADMIN Role');
-    // Attempting to create a second SUPER_ADMIN via the employee creation endpoint
+    // Attempting to create a SUPER_ADMIN via the employee creation endpoint by non-super-admin
     const createSuperAdminAttempt = await fetch(`${baseUrl}/admin-users`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${superAdminToken}`,
+        Authorization: `Bearer ${managerToken}`,
       },
       body: JSON.stringify({
         name: 'Rogue Super Admin',

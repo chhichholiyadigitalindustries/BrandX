@@ -1,0 +1,13 @@
+# BrandX India Robots.txt
+User-agent: *
+Allow: /
+Allow: /store/
+Allow: /card/
+Allow: /terms
+Allow: /privacy
+Allow: /refund
+Allow: /security
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://brandxindia.com/sitemap.xml

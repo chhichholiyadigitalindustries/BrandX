@@ -18,6 +18,7 @@ import { runKhataSharingTests } from './khataSharing.test.js';
 import { runPricingIntegrityTests } from './pricingIntegrity.test.js';
 import { runUniversalUpiQrTests } from './universalUpiQr.test.js';
 import { runAdminRevenueAndRbacTests } from './adminRevenueAndRbac.test.js';
+import { runSuperAdminTeamManagementTests } from './superAdminTeamManagement.test.js';
 
 async function runAll() {
   console.log('========================================================');
@@ -43,6 +44,7 @@ async function runAll() {
     await runUniversalUpiQrTests();
     await runAdminTests();
     await runAdminRevenueAndRbacTests();
+    await runSuperAdminTeamManagementTests();
     await runReferralWalletTests();
     await runSecurityGradingTests();
 

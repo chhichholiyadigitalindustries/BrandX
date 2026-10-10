@@ -10,7 +10,7 @@ export const config = {
   isProduction: process.env.NODE_ENV === 'production',
   port: parseInt(process.env.PORT || '5000', 10),
   apiPrefix: process.env.API_PREFIX || '/api/v1',
-  corsOrigin: (process.env.CORS_ORIGIN || 'https://brandx-frontend.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173')
+  corsOrigin: (process.env.CORS_ORIGIN || 'https://brandx-frontend.onrender.com,https://brandxindia.com,https://www.brandxindia.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173')
     .split(',')
     .map((o) => o.trim().replace(/\/+$/, ''))
     .filter(Boolean),

@@ -40,10 +40,18 @@ import { ReferralScreen } from './screens/ReferralScreen';
 import { WalletScreen } from './screens/WalletScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { AdminApp } from './admin/AdminApp';
+import { ComingSoonScreen } from './screens/ComingSoonScreen';
+import { NotFoundScreen } from './components/NotFoundScreen';
 
 export type AuthStage = 'AUTH_LOADING' | 'AUTHENTICATED_HYDRATING' | 'AUTHENTICATED_READY' | 'UNAUTHENTICATED';
 
-export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
+export function AppContent({
+  onOpenAdmin,
+  onBackToHome,
+}: {
+  onOpenAdmin?: () => void;
+  onBackToHome?: () => void;
+} = {}) {
   const [authStage, setAuthStage] = useState<AuthStage>('AUTH_LOADING');
 
   // Start directly on Auth / Login screen if not authenticated
@@ -452,6 +460,7 @@ export function AppContent({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
                 currentBusiness={business}
                 initialMode="signin"
                 onOpenAdmin={onOpenAdmin}
+                onBackToHome={onBackToHome}
               />
             )}
 
@@ -680,29 +689,125 @@ export default function App() {
     return null;
   };
 
-  const [publicRoute, setPublicRoute] = useState<{ type: 'store' | 'card'; slug: string } | null>(parsePublicRoute);
+  const getLegalDocFromPath = (path: string, hash: string): 'terms' | 'privacy' | 'refund' | 'security' | null => {
+    const cleanPath = path.toLowerCase().replace(/\/$/, '');
+    const cleanHash = hash.toLowerCase();
 
-  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return (
-        window.location.pathname.startsWith('/admin') ||
-        window.location.hash.startsWith('#admin') ||
-        window.location.search.includes('mode=admin')
-      );
+    if (
+      cleanPath === '/terms' ||
+      cleanPath === '/terms-and-conditions' ||
+      cleanPath === '/terms-of-service' ||
+      cleanHash === '#terms'
+    ) {
+      return 'terms';
     }
-    return false;
-  });
+    if (
+      cleanPath === '/privacy' ||
+      cleanPath === '/privacy-policy' ||
+      cleanHash === '#privacy'
+    ) {
+      return 'privacy';
+    }
+    if (
+      cleanPath === '/refund' ||
+      cleanPath === '/refund-policy' ||
+      cleanPath === '/cancellation-policy' ||
+      cleanHash === '#refund'
+    ) {
+      return 'refund';
+    }
+    if (
+      cleanPath === '/security' ||
+      cleanPath === '/data-security' ||
+      cleanHash === '#security'
+    ) {
+      return 'security';
+    }
+    return null;
+  };
+
+  const getCurrentState = () => {
+    if (typeof window === 'undefined') {
+      return {
+        publicRoute: null as { type: 'store' | 'card'; slug: string } | null,
+        isAdmin: false,
+        isApp: false,
+        legalDoc: null as 'terms' | 'privacy' | 'refund' | 'security' | null,
+        isNotFound: false,
+      };
+    }
+
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+    const hash = window.location.hash.toLowerCase();
+    const search = window.location.search;
+
+    // 1. Public digital store / NFC visiting card
+    const pubRoute = parsePublicRoute();
+    if (pubRoute) {
+      return { publicRoute: pubRoute, isAdmin: false, isApp: false, legalDoc: null, isNotFound: false };
+    }
+
+    // 2. Admin Portal
+    const isAdmin =
+      path.startsWith('/admin') ||
+      hash.startsWith('#admin') ||
+      search.includes('mode=admin');
+    if (isAdmin) {
+      return { publicRoute: null, isAdmin: true, isApp: false, legalDoc: null, isNotFound: false };
+    }
+
+    // 3. Legal document deep-links
+    const legalDoc = getLegalDocFromPath(window.location.pathname, window.location.hash);
+
+    // 4. Explicit Super App routes
+    const isApp =
+      path === '/app' ||
+      path.startsWith('/app/') ||
+      path === '/login' ||
+      path === '/auth' ||
+      path === '/signup' ||
+      hash.startsWith('#app') ||
+      hash.startsWith('#login') ||
+      search.includes('view=app');
+
+    // 5. Landing / marketing routes
+    const isLanding =
+      path === '/' ||
+      path === '/coming-soon' ||
+      path === '/home' ||
+      path === '/about' ||
+      path === '/features' ||
+      path === '/pricing' ||
+      path === '/contact' ||
+      hash.startsWith('#features') ||
+      hash.startsWith('#pricing') ||
+      hash.startsWith('#waitlist') ||
+      hash.startsWith('#contact') ||
+      legalDoc !== null;
+
+    // If authenticated user visits root '/', directly open Super App (unless deep-linked to legal/waitlist)
+    const isAuth = authApi.isAuthenticated();
+    if (isAuth && path === '/' && !legalDoc && !hash.startsWith('#waitlist')) {
+      return { publicRoute: null, isAdmin: false, isApp: true, legalDoc: null, isNotFound: false };
+    }
+
+    if (isApp) {
+      return { publicRoute: null, isAdmin: false, isApp: true, legalDoc: null, isNotFound: false };
+    }
+
+    if (isLanding) {
+      return { publicRoute: null, isAdmin: false, isApp: false, legalDoc, isNotFound: false };
+    }
+
+    // 6. Unknown route -> 404
+    return { publicRoute: null, isAdmin: false, isApp: false, legalDoc: null, isNotFound: true };
+  };
+
+  const [routeState, setRouteState] = useState(getCurrentState);
 
   useEffect(() => {
     const handleUrlChange = () => {
-      setPublicRoute(parsePublicRoute());
-      if (typeof window !== 'undefined') {
-        setIsAdminRoute(
-          window.location.pathname.startsWith('/admin') ||
-          window.location.hash.startsWith('#admin') ||
-          window.location.search.includes('mode=admin')
-        );
-      }
+      setRouteState(getCurrentState());
     };
 
     window.addEventListener('popstate', handleUrlChange);
@@ -713,35 +818,89 @@ export default function App() {
     };
   }, []);
 
+  const handleOpenApp = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', '/app');
+      }
+    } catch {}
+    setRouteState(prev => ({ ...prev, isApp: true, isNotFound: false, legalDoc: null }));
+  };
+
+  const handleOpenLogin = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', '/login');
+      }
+    } catch {}
+    setRouteState(prev => ({ ...prev, isApp: true, isNotFound: false, legalDoc: null }));
+  };
+
+  const handleBackToHome = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.history.pushState(null, '', '/');
+      }
+    } catch {}
+    setRouteState(prev => ({ ...prev, isApp: false, isNotFound: false, legalDoc: null }));
+  };
+
   const handleOpenAdmin = () => {
     try {
       if (typeof window !== 'undefined') {
         window.history.pushState(null, '', '/admin');
       }
     } catch {}
-    setIsAdminRoute(true);
+    setRouteState(prev => ({ ...prev, isAdmin: true, isNotFound: false }));
   };
 
-  // Public Routes (No authentication required)
-  if (publicRoute) {
-    if (publicRoute.type === 'store') {
-      return <PublicStoreView slug={publicRoute.slug} />;
+  // 1. Public digital store / NFC visiting card
+  if (routeState.publicRoute) {
+    if (routeState.publicRoute.type === 'store') {
+      return <PublicStoreView slug={routeState.publicRoute.slug} />;
     }
-    if (publicRoute.type === 'card') {
-      return <PublicCardView slug={publicRoute.slug} />;
+    if (routeState.publicRoute.type === 'card') {
+      return <PublicCardView slug={routeState.publicRoute.slug} />;
     }
   }
 
-  // Admin Portal
-  if (isAdminRoute) {
+  // 2. Admin Portal
+  if (routeState.isAdmin) {
     return <AdminApp />;
   }
 
-  // Authenticated Main BrandX Super App
+  // 3. 404 Not Found Page
+  if (routeState.isNotFound) {
+    return (
+      <NotFoundScreen
+        onGoHome={handleBackToHome}
+        onOpenApp={handleOpenApp}
+      />
+    );
+  }
+
+  // 4. Authenticated or explicit App route (/app, /login, etc.)
+  if (routeState.isApp) {
+    return (
+      <ThemeProvider>
+        <LanguageProvider>
+          <AppContent
+            onOpenAdmin={handleOpenAdmin}
+            onBackToHome={handleBackToHome}
+          />
+        </LanguageProvider>
+      </ThemeProvider>
+    );
+  }
+
+  // 5. Default: Public Coming Soon Landing Page
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <AppContent onOpenAdmin={handleOpenAdmin} />
+        <ComingSoonScreen
+          onOpenApp={handleOpenApp}
+          initialDocId={routeState.legalDoc}
+        />
       </LanguageProvider>
     </ThemeProvider>
   );

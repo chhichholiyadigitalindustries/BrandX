@@ -52,7 +52,7 @@ export function resolveImageUrl(url: string | null | undefined): string {
   const origin = BACKEND_ORIGIN.replace(/\/+$/, '');
 
   // 3. Rewrite accidental frontend domain media URLs (e.g. https://brandx-frontend.onrender.com/uploads/...)
-  if (trimmed.includes('brandx-frontend.onrender.com')) {
+  if (trimmed.includes('brandx-frontend.onrender.com') || (trimmed.includes('brandxindia.com') && !trimmed.includes('api.brandxindia.com'))) {
     const pathPart = trimmed.replace(/^https?:\/\/[^/]+/, '');
     if (pathPart && !isFrontendAsset) {
       return `${origin}${pathPart.startsWith('/') ? pathPart : '/' + pathPart}`;

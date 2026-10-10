@@ -24,6 +24,7 @@ interface AuthScreenProps {
   currentBusiness?: BusinessProfile;
   initialMode?: 'signin' | 'signup';
   onOpenAdmin?: () => void;
+  onBackToHome?: () => void;
 }
 
 
@@ -50,6 +51,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   currentBusiness,
   initialMode = 'signin',
   onOpenAdmin,
+  onBackToHome,
 }) => {
   const { language, toggleLanguage, isHindi } = useLanguage();
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>(initialMode);
@@ -576,15 +578,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </div>
         </div>
 
-        {/* Language Pill Switcher */}
-        <button
-          onClick={toggleLanguage}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#eaedff] text-xs font-semibold text-[#131b2e] hover:bg-[#dae2fd] transition-colors border border-indigo-100 cursor-pointer"
-          type="button"
-        >
-          <span className="material-symbols-outlined text-[15px] text-blue-600">translate</span>
-          <span>{isHindi ? 'हिन्दी / EN' : 'English / हिन्दी'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onBackToHome && (
+            <button
+              onClick={onBackToHome}
+              type="button"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#eaedff] text-[11px] font-semibold text-[#131b2e] hover:bg-[#dae2fd] transition-colors border border-indigo-100 cursor-pointer"
+              title="Return to BrandX Coming Soon Landing Page"
+            >
+              <span className="material-symbols-outlined text-[14px] text-blue-600">home</span>
+              <span>{isHindi ? 'होम' : 'Home'}</span>
+            </button>
+          )}
+
+          {/* Language Pill Switcher */}
+          <button
+            onClick={toggleLanguage}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#eaedff] text-xs font-semibold text-[#131b2e] hover:bg-[#dae2fd] transition-colors border border-indigo-100 cursor-pointer"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[15px] text-blue-600">translate</span>
+            <span>{isHindi ? 'हिन्दी / EN' : 'English / हिन्दी'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Hero Branding Section */}

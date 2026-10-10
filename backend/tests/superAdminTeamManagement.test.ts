@@ -489,9 +489,12 @@ export async function runSuperAdminTeamManagementTests(): Promise<void> {
   }
 }
 
-runSuperAdminTeamManagementTests()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error('❌ Test failure:', e);
-    process.exit(1);
-  });
+// Direct execution support
+if (process.argv[1]?.includes('superAdminTeamManagement.test')) {
+  runSuperAdminTeamManagementTests()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error('❌ Test failure:', e);
+      process.exit(1);
+    });
+}

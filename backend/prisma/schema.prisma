@@ -1424,3 +1424,16 @@ model Withdrawal {
   @@index([createdAt])
 }
 
+model WaitlistEntry {
+  id           String   @id @default(uuid())
+  name         String?
+  phone        String   @unique
+  email        String?
+  businessName String?
+  businessType String?
+  city         String?
+  createdAt    DateTime @default(now())
+
+  @@index([phone])
+}
+
