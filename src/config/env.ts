@@ -32,9 +32,15 @@ function resolveApiBaseUrl(): string {
       return runtimeUrl.trim().replace(/\/+$/, '');
     }
 
-    // If running on Render frontend domain or custom brandxindia.com domain, automatically target the live Render backend service
+    // If running on Render frontend domain, custom brandxindia.com domain, or Capacitor Android app, target the live Render backend service
     const host = window.location.hostname;
+    const isCapacitor =
+      typeof (window as any).Capacitor !== 'undefined' ||
+      window.location.protocol === 'capacitor:' ||
+      (isProduction && (host === 'localhost' || host === '127.0.0.1'));
+
     if (
+      isCapacitor ||
       host.includes('brandx-frontend.onrender.com') ||
       host.includes('onrender.com') ||
       host.includes('brandxindia.com')
@@ -44,9 +50,7 @@ function resolveApiBaseUrl(): string {
   }
 
   if (isProduction) {
-    if (typeof window !== 'undefined' && window.location.origin) {
-      return `${window.location.origin}/api/v1`;
-    }
+    return 'https://brandx-backend-okj8.onrender.com/api/v1';
   }
 
   return 'http://localhost:5000/api/v1';
@@ -59,7 +63,7 @@ export function resolveBackendOrigin(): string {
     if (API_BASE_URL) {
       const parsed = new URL(
         API_BASE_URL,
-        typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5000'
+        typeof window !== 'undefined' ? window.location.origin : 'https://brandx-backend-okj8.onrender.com'
       );
       if (
         typeof window !== 'undefined' &&
@@ -75,7 +79,9 @@ export function resolveBackendOrigin(): string {
 
   if (
     typeof window !== 'undefined' &&
-    (window.location.hostname.includes('onrender.com') ||
+    ((window as any).Capacitor ||
+      window.location.protocol === 'capacitor:' ||
+      window.location.hostname.includes('onrender.com') ||
       window.location.hostname.includes('brandxindia.com'))
   ) {
     return 'https://brandx-backend-okj8.onrender.com';

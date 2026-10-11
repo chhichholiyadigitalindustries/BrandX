@@ -785,6 +785,17 @@ export default function App() {
       hash.startsWith('#contact') ||
       legalDoc !== null;
 
+    // In Capacitor Android native app, launch directly into Super App (Auth / Dashboard)
+    const isNativePlatform =
+      typeof window !== 'undefined' &&
+      typeof (window as any).Capacitor !== 'undefined' &&
+      typeof (window as any).Capacitor.isNativePlatform === 'function' &&
+      (window as any).Capacitor.isNativePlatform();
+
+    if (isNativePlatform && !legalDoc && !search.includes('view=landing')) {
+      return { publicRoute: null, isAdmin: false, isApp: true, legalDoc: null, isNotFound: false };
+    }
+
     // If authenticated user visits root '/', directly open Super App (unless deep-linked to legal/waitlist)
     const isAuth = authApi.isAuthenticated();
     if (isAuth && path === '/' && !legalDoc && !hash.startsWith('#waitlist')) {
